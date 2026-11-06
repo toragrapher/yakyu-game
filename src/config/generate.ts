@@ -53,7 +53,7 @@ export const AGE_WEIGHTS: readonly [number, number][] = [
 export const CAP_MEAN = 60;
 export const CAP_SD = 10;
 /** 能力ごとの個人差（同じ選手の中での得手不得手） */
-export const ABILITY_SPREAD_SD = 9;
+export const ABILITY_SPREAD_SD = 7;
 /** ピーク前、1年あたり上限からどれだけ低いか */
 export const GAP_PER_YEAR_BEFORE_PEAK = 3.5;
 /** ピーク後、1年あたりどれだけ衰えているか */
@@ -64,3 +64,9 @@ export const IKUSEI_CAP_PENALTY = 10;
 /** 能力の下限・上限 */
 export const ABILITY_MIN = 1;
 export const ABILITY_MAX = 100;
+
+/**
+ * AI球団どうしの戦力差をどれだけ縮めるか（0＝そのまま、1＝完全にそろえる）。
+ * 一軍の平均能力をリーグ平均に近づける。
+ */
+export const TEAM_PARITY = 0.95;

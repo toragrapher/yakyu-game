@@ -1,5 +1,5 @@
 // 1打席の結果を確率で決める
-import { BASE_RATES, ELASTICITY, GLOBAL, PIVOT, PLATOON_SAME_SIDE } from '../../config/balance';
+import { BASE_RATES, ELASTICITY, GLOBAL, PIVOT, PLATOON_SAME_SIDE, SOFT_CAP } from '../../config/balance';
 import type { Rng } from '../rng';
 import type { Bats, Throws } from '../types';
 
@@ -30,10 +30,17 @@ export interface ParkEff {
 
 type Values = Record<string, number>;
 
+/** 高すぎる能力の効き方を弱める */
+function soft(key: string, v: number): number {
+  const c = SOFT_CAP[key];
+  if (!c || v <= c.start) return v;
+  return c.start + (v - c.start) * c.factor;
+}
+
 function mult(el: Values, v: Values): number {
   let x = 0;
-  for (const k in el) x += el[k] * ((v[k] - PIVOT) / 10);
-  return Math.exp(x);
+  for (const k in el) x += el[k] * ((soft(k, v[k]) - PIVOT) / 10);
+  return Math.exp(x * GLOBAL.spread);
 }
 
 const ORDER: PAResult[] = ['K', 'BB', 'HBP', 'S', 'D', 'T', 'HR', 'OUT'];

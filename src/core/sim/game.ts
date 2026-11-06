@@ -198,6 +198,8 @@ export function simulateGame(rng: Rng, away: GameTeam, home: GameTeam, opts: Gam
   };
 
   // ---- 得点 ----
+  /** 今の半イニングで、自責点にならない状態か（失策で3アウトを逃した後） */
+  let inningUnearned = false;
   const score = (off: Side, def: Side, offIdx: 0 | 1, r: Runner, rbiLine: BatLine | null) => {
     const before = off.runs - def.runs;
     off.runs++;
@@ -206,7 +208,7 @@ export function simulateGame(rng: Rng, away: GameTeam, home: GameTeam, opts: Gam
     if (rbiLine) rbiLine.rbi++;
     const pl = def.pitchLines.find((x) => x.playerId === r.resp) ?? def.pLine;
     pl.r++;
-    if (r.earned) pl.er++;
+    if (r.earned && !inningUnearned) pl.er++;
     const after = off.runs - def.runs;
     if (before <= 0 && after > 0) lastLead = { team: offIdx, winPitcher: off.pitcher.id, losePitcher: r.resp };
     if (after === 0) lastLead = null;
@@ -219,11 +221,15 @@ export function simulateGame(rng: Rng, away: GameTeam, home: GameTeam, opts: Gam
     off.line.push(0);
     considerChange(def, off, true);
     let outs = 0;
+    /** 失策がなければ取れていたアウトの数。アウト数との合計が3以上になった後の得点は自責点にしない */
+    let errorOuts = 0;
     const bases: (Runner | null)[] = [null, null, null];
     const walkoff = () => offIdx === 1 && inning >= 9 && off.runs > def.runs;
+    inningUnearned = false;
     const addOut = (n = 1) => {
       outs += n;
       def.pLine.outs += n;
+      if (outs + errorOuts >= 3) inningUnearned = true;
     };
 
     while (outs < 3) {
@@ -380,6 +386,8 @@ export function simulateGame(rng: Rng, away: GameTeam, home: GameTeam, opts: Gam
           if (rng.chance(errP)) {
             // 失策：打者は一塁へ、走者は1つずつ進む（打点なし）
             def.errors++;
+            errorOuts++;
+            if (outs + errorOuts >= 3) inningUnearned = true;
             const [r1, r2, r3] = bases;
             if (r3) score(off, def, offIdx, r3, null);
             bases[2] = r2; bases[1] = r1; bases[0] = runnerOf(false);

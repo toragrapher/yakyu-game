@@ -70,7 +70,7 @@ describe('1試合', () => {
     const perTeam = totalRuns / games / 2;
     expect(perTeam).toBeGreaterThan(2.5);
     expect(perTeam).toBeLessThan(7);
-    // 20点以上はごくまれ（目標範囲への細かい調整はステップ3の検証ツールで行う）
-    expect(huge / (games * 2)).toBeLessThan(0.02);
+    // 20点以上はごくまれ
+    expect(huge / (games * 2)).toBeLessThan(0.003);
   });
 });

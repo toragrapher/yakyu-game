@@ -1,5 +1,8 @@
 // 球団と、その所属選手の生成
-import { IKUSEI_TEMPLATE, ROSTER_TEMPLATE } from '../../config/generate';
+import { ABILITY_MAX, ABILITY_MIN, IKUSEI_TEMPLATE, ROSTER_TEMPLATE, TEAM_PARITY } from '../../config/generate';
+import { batterOverall, pitcherOverall } from '../ratings';
+import { salaryFor } from '../salary';
+import { selectFirstTeam } from '../season/firstTeam';
 import { CITY_CANDIDATES, COLOR_CANDIDATES, NICKNAME_CANDIDATES, STADIUM_SUFFIXES } from '../../config/teams';
 import type { NameRegistry } from '../names';
 import type { Rng } from '../rng';
@@ -93,5 +96,42 @@ export function generateAiTeams(rng: Rng, names: NameRegistry, counts: [number, 
     teams.push(team);
     players.push(...generateRoster(rng, names, team.id, () => pid++));
   }
+  equalizeTeams(teams, players, TEAM_PARITY);
   return { teams, players };
+}
+
+const clampAbility = (v: number) => Math.max(ABILITY_MIN, Math.min(ABILITY_MAX, Math.round(v)));
+
+/** 一軍の平均能力（野手・投手別）をリーグ平均に近づけ、AI球団どうしの戦力差を縮める */
+export function equalizeTeams(teams: Team[], players: Player[], parity: number): void {
+  if (parity <= 0) return;
+  const strength = new Map<number, { bat: number; pit: number }>();
+  for (const t of teams) {
+    const ft = selectFirstTeam(players.filter((p) => p.teamId === t.id));
+    const bat = ft.fielders.slice(0, 10).reduce((s, p) => s + batterOverall(p.bat, p.mainPos as Exclude<Player['mainPos'], 'P'>), 0) / 10;
+    const ps = [...ft.rotation, ...ft.relievers];
+    const pit = ps.reduce((s, p) => s + pitcherOverall(p.pitch!, p.role!), 0) / ps.length;
+    strength.set(t.id, { bat, pit });
+  }
+  const vals = [...strength.values()];
+  const meanBat = vals.reduce((s, v) => s + v.bat, 0) / vals.length;
+  const meanPit = vals.reduce((s, v) => s + v.pit, 0) / vals.length;
+  for (const p of players) {
+    const st = p.teamId != null ? strength.get(p.teamId) : undefined;
+    if (!st) continue;
+    if (p.pitch && p.pitchCap) {
+      const d = (meanPit - st.pit) * parity;
+      for (const k of ['velocity', 'control', 'breaking', 'stamina'] as const) {
+        p.pitch[k] = clampAbility(p.pitch[k] + d);
+        p.pitchCap[k] = Math.max(p.pitch[k], clampAbility(p.pitchCap[k] + d));
+      }
+    } else {
+      const d = (meanBat - st.bat) * parity;
+      for (const k of ['contact', 'power', 'speed', 'defense'] as const) {
+        p.bat[k] = clampAbility(p.bat[k] + d);
+        p.batCap[k] = Math.max(p.bat[k], clampAbility(p.batCap[k] + d));
+      }
+    }
+    p.salary = salaryFor(p);
+  }
 }

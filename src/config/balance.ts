@@ -12,7 +12,7 @@ export const BASE_RATES = {
   BB: 0.08, // 四球
   HBP: 0.008, // 死球
   S: 0.16, // 単打
-  D: 0.043, // 二塁打
+  D: 0.031, // 二塁打
   T: 0.004, // 三塁打
   HR: 0.023, // 本塁打
   // 残りが凡打
@@ -20,10 +20,12 @@ export const BASE_RATES = {
 
 /** 打高・打低の全体係数（1より大きいと増える） */
 export const GLOBAL = {
-  hit: 1.0, // 単打・二塁打・三塁打
-  hr: 1.0, // 本塁打
-  k: 1.0, // 三振
-  bb: 1.0, // 四球
+  hit: 1.12, // 単打・二塁打・三塁打
+  hr: 0.82, // 本塁打
+  k: 1.04, // 三振
+  bb: 0.78, // 四球
+  /** 能力差の効き方の強さ（下の ELASTICITY 全体に掛ける）。大きいと強い選手・弱い選手の差が開く */
+  spread: 0.7,
 };
 
 /**
@@ -34,10 +36,23 @@ export const ELASTICITY = {
   K: { contact: -0.18, power: 0.06, velocity: 0.16, breaking: 0.1 },
   BB: { contact: 0.05, power: 0.08, control: -0.25 },
   HBP: { control: -0.15 },
-  S: { contact: 0.13, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
+  S: { contact: 0.2, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
   D: { contact: 0.08, power: 0.1, speed: 0.03, breaking: -0.07, defense: -0.04 },
   T: { power: 0.05, speed: 0.3, defense: -0.04 },
-  HR: { contact: 0.03, power: 0.32, velocity: -0.06, breaking: -0.06, control: -0.05 },
+  HR: { contact: 0.03, power: 0.9, velocity: -0.06, breaking: -0.06, control: -0.05 },
+};
+
+/**
+ * 能力の頭打ち：この値を超えた分は効き方を弱める（極端な成績を防ぐ）。
+ * 有効な能力 ＝ 始まり ＋ (能力 − 始まり) × 倍率（能力ごと）
+ */
+export const SOFT_CAP: Record<string, { start: number; factor: number }> = {
+  contact: { start: 68, factor: 0.35 },
+  power: { start: 82, factor: 0.5 },
+  speed: { start: 80, factor: 0.6 },
+  velocity: { start: 74, factor: 0.45 },
+  control: { start: 74, factor: 0.45 },
+  breaking: { start: 74, factor: 0.45 },
 };
 
 /** 調子（1〜5）が1段階ずれるごとに、能力を何ポイント上下させるか */
@@ -70,7 +85,7 @@ export const TACTIC_FIT = {
 /** 盗塁 */
 export const STEAL = {
   minSpeed: 45, // これ未満の走者は走らない
-  attemptBase: 0.055, // 二塁が空いている一塁走者が、1打席の前に走る確率（走塁が基準値のとき）
+  attemptBase: 0.075, // 二塁が空いている一塁走者が、1打席の前に走る確率（走塁が基準値のとき）
   attemptElasticity: 0.5, // 走塁10ごと
   thirdFactor: 0.12, // 三盗は二盗の何倍走るか
   successBase: 0.7,
@@ -94,21 +109,21 @@ export const BUNT = {
 export const IN_PLAY = {
   groundBase: 0.5, // 凡打のうちゴロの割合
   groundPerPower: -0.005, // 長打1ごと
-  doublePlay: 0.3, // 一塁走者あり・2アウト未満のゴロで併殺になる確率
+  doublePlay: 0.5, // 一塁走者あり・2アウト未満のゴロで併殺になる確率
   doublePlayPerSpeed: -0.004, // 打者の走塁1ごと
   doublePlayPerDefense: 0.003, // チーム守備1ごと
-  error: 0.016, // 凡打が失策になる確率
+  error: 0.022, // 凡打が失策になる確率
   errorElasticity: -0.25, // チーム守備10ごと
-  sacFly: 0.55, // 三塁走者が犠飛で還る確率（フライ・2アウト未満）
+  sacFly: 0.45, // 三塁走者が犠飛で還る確率（フライ・2アウト未満）
   groundScore: 0.5, // 三塁走者がゴロの間に還る確率（2アウト未満）
   advanceOnOut: 0.4, // 二塁走者が凡打で三塁へ進む確率
 };
 
 /** ヒットでの進塁（基準）。走者の走塁1ごとに perSpeed ずつ増減 */
 export const ADVANCE = {
-  singleSecondScores: 0.62, // 単打で二塁走者が還る
-  singleFirstToThird: 0.28, // 単打で一塁走者が三塁まで
-  doubleFirstScores: 0.42, // 二塁打で一塁走者が還る
+  singleSecondScores: 0.45, // 単打で二塁走者が還る
+  singleFirstToThird: 0.2, // 単打で一塁走者が三塁まで
+  doubleFirstScores: 0.3, // 二塁打で一塁走者が還る
   perSpeed: 0.008,
 };
 
@@ -135,9 +150,9 @@ export const PITCHING = {
 
 /** 球場の補正（本塁打・二塁打・単打の倍率） */
 export const PARK = {
-  size: { small: { hr: 1.15, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, large: { hr: 0.86, d: 1.06 } },
+  size: { small: { hr: 1.1, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, large: { hr: 0.9, d: 1.05 } },
   fence: { low: { hr: 1.07, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, high: { hr: 0.9, d: 1.08 } },
-  terrace: { hr: 1.12 },
+  terrace: { hr: 1.08 },
   artificialTurf: { s: 1.03, d: 1.02 },
 };
 
