@@ -14,6 +14,7 @@ import type { OffenseTactic, PitchingTactic, Player } from '../core/types';
 import { app } from './app';
 import { abilityLine, conditionIcon, esc, fatigueBar, rankBadge } from './common';
 import { attachDnd } from './dnd';
+import { rosterSummary } from './rosterSummary';
 
 let tab: 'fielders' | 'pitchers' | 'tactics' = 'fielders';
 /** 押して選んだ場所（もう一つ押すと入れ替え） */
@@ -172,6 +173,7 @@ export function renderLocker(el: HTMLElement): void {
     <h1>ロッカールーム</h1>
     <div class="seg"><button class="${tab === 'fielders' ? 'on' : ''}" data-tab="fielders">野手</button><button class="${tab === 'pitchers' ? 'on' : ''}" data-tab="pitchers">投手</button><button class="${tab === 'tactics' ? 'on' : ''}" data-tab="tactics">方針</button></div>
     ${tab !== 'tactics' ? `
+    ${rosterSummary(w)}
     <div class="card lk-bar">
       <div class="small">一軍 <b>${firstPs.length}</b>/${FIRST_TEAM_SIZE}人（投手${firstPs.filter((p) => p.mainPos === 'P').length}・野手${firstPs.filter((p) => p.mainPos !== 'P').length}）
         ${L.dirty ? '<span class="lose">未確定の変更があります</span>' : '<span class="muted">変更なし</span>'}</div>

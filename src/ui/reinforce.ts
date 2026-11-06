@@ -10,6 +10,7 @@ import { rankOf } from '../core/ratings';
 import type { DraftState } from '../core/season/types';
 import type { Player } from '../core/types';
 import { app } from './app';
+import { rosterSummary } from './rosterSummary';
 import { runDraftShow } from './draftShow';
 import { syncFirstYear } from '../core/offseason/offseason';
 import { bindContractTab, bindMoneyTab, renderContractTab, renderMoneyTab } from './contracts';
@@ -64,7 +65,8 @@ export function renderReinforce(el: HTMLElement): void {
   const w = app.world!;
   const items: [typeof tab, string][] = [['draft', 'ドラフト'], ['contract', '契約更改'], ['money', 'お金'], ['foreign', '助っ人外国人'], ['scout', 'スカウト配置']];
   const tabs = `<h1>補強</h1>
-    <div class="teamtabs" style="margin-bottom:10px">${items.map(([k, l]) => `<button class="${tab === k ? '' : 'sub'}" data-tab="${k}">${l}${k === 'contract' && w.offseason && w.offseason.phase !== 'camp' ? '<span class="nav-dot" style="top:2px;right:2px"></span>' : ''}</button>`).join('')}</div>`;
+    <div class="teamtabs" style="margin-bottom:10px">${items.map(([k, l]) => `<button class="${tab === k ? '' : 'sub'}" data-tab="${k}">${l}${k === 'contract' && w.offseason && w.offseason.phase !== 'camp' ? '<span class="nav-dot" style="top:2px;right:2px"></span>' : ''}</button>`).join('')}</div>
+    ${rosterSummary(w)}`;
   const bindTabs = () => el.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab as typeof tab; app.refresh(); }));
   if (tab === 'contract') {
     el.innerHTML = tabs + renderContractTab(w);
