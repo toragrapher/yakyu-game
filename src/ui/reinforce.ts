@@ -40,8 +40,9 @@ function rankRange([lo, hi]: [number, number]): string {
   return a === b ? a : `${a}〜${b}`;
 }
 
+/** 色は幅の一番上のランクに合わせる（本当の値を色で漏らさない） */
 function rankRangeBadge(r: [number, number]): string {
-  return `<span class="rank rank-${rankOf((r[0] + r[1]) / 2)}">${rankRange(r)}</span>`;
+  return `<span class="rank rank-${rankOf(r[1])}">${rankRange(r)}</span>`;
 }
 
 function candidateRow(w: World, d: DraftState, p: Player, canPick: boolean): string {

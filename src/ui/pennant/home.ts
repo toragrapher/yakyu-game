@@ -353,12 +353,12 @@ export function renderHome(el: HTMLElement): void {
       <div class="bc-top"><span class="bc-tag">${w.season.year}年</span><span>${w.offseason?.firstYear ? '開幕前' : w.season.finished ? 'レギュラーシーズン終了' : dateLabel(date)}</span></div>
       <div class="bc-team">${logoSvg(me.logo, 54)}<div class="bc-name">${esc(me.name)}</div></div>
       <div class="bc-stats">
-        <div class="bc-stat"><span class="bc-k">${LEAGUE_NAMES[me.league].replace('リーグ', '')}</span><span class="bc-v">${myRow + 1}<small>位</small></span><span class="bc-s">${myRow === 0 ? (table[1] ? `2位と${table[1].gb.toFixed(1)}差` : '') : `首位と${gb.toFixed(1)}差`}</span></div>
-        <div class="bc-stat"><span class="bc-k">勝敗</span><span class="bc-v">${st.w}-${st.l}${st.t ? `<small>-${st.t}</small>` : ''}</span><span class="bc-s">勝率${pct}</span></div>
-        <div class="bc-stat"><span class="bc-k">${sk ? (sk.kind === 'W' ? '連勝' : '連敗') : '流れ'}</span><span class="bc-v ${sk?.kind === 'W' ? 'hot' : ''}">${sk ? sk.count : '-'}</span><span class="bc-s">二軍${rankOfTeam(w, 'farm', me.id)}位</span></div>
+        <div class="bc-stat"><span class="bc-k">${LEAGUE_NAMES[me.league]}</span><span class="bc-v">${myRow + 1}<small>位</small></span><span class="bc-s">${myRow === 0 ? (table[1] ? `2位と${table[1].gb.toFixed(1)}差` : '') : `首位と${gb.toFixed(1)}差`}</span></div>
+        <div class="bc-stat"><span class="bc-k">勝敗</span><span class="bc-v">${st.w}-${st.l}${st.t ? `<small>(${st.t})</small>` : ''}</span><span class="bc-s">勝率${pct}</span></div>
+        <div class="bc-stat"><span class="bc-k">${sk ? (sk.kind === 'W' ? '連勝' : '連敗') : '連勝・連敗'}</span><span class="bc-v ${sk?.kind === 'W' ? 'hot' : ''}">${sk ? sk.count : 'なし'}</span><span class="bc-s">二軍${rankOfTeam(w, 'farm', me.id)}位</span></div>
       </div>
       ${w.finance ? `<div class="bc-money"><span>資金 <b>${moneyLabel(w.finance.balance)}</b></span>${w.fans?.[me.id] ? `<span>ファン <b>${((w.fans[me.id].core + w.fans[me.id].light) / 10000).toFixed(1)}万人</b></span>` : ''}</div>` : ''}
-      ${last10.length ? `<div class="last10">${last10.slice().reverse().map((g) => `<span class="m-${g.result}">${mark(g.result)}</span>`).join('')}<span class="bc-s">最近${last10.length}試合 ${last10.filter((g) => g.result === 'W').length}勝${last10.filter((g) => g.result === 'L').length}敗</span></div>` : ''}
+      ${last10.length ? `<div class="last10">${last10.slice().reverse().map((g) => `<span class="m-${g.result}">${mark(g.result)}</span>`).join('')}<span class="bc-s">最近${last10.length}試合 ${last10.filter((g) => g.result === 'W').length}勝${last10.filter((g) => g.result === 'L').length}敗${last10.some((g) => g.result === 'T') ? `(${last10.filter((g) => g.result === 'T').length})` : ''}</span></div>` : ''}
     </div>
 
     ${news.length ? `<div class="bc-ticker"><span class="bc-ticker-label">速報</span><div class="bc-ticker-track"><span>${news.map((n) => `${dateLabel(n.date)}　${esc(n.text)}`).join('　　◆　　')}</span></div></div>` : ''}
