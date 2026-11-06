@@ -1,34 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_REGULAR_PICKS } from '../src/config/draft';
 import {
-  available, beginRound1, currentTeam, scoutReport, scoutWidth, startDraft, submitRound1, todayOf, userPass, userPick, visit,
+  beginRound1, scoutReport, scoutWidth, startDraft, todayOf, visit,
 } from '../src/core/draft';
 import { overall, potentialOverall } from '../src/core/ratings';
 import { advanceDay, advanceDays, createWorld } from '../src/core/season/advance';
 import { runPostseason } from '../src/core/season/postseason';
 import type { World } from '../src/core/season/types';
+import { playDraft } from './helpers';
 
 function worldAfterSeason(seed: number): World {
   const w = createWorld(seed, { teamCounts: [7, 6], games: null, interleague: { mode: 'period', games: 18 }, dh: [true, true], postseason: { teams: [3, 3], advantage: true } }, 2027);
   advanceDays(w, 99999);
   runPostseason(w);
   return w;
-}
-
-/** 自球団は将来性の高い順に、支配下 n 人・育成 m 人を指名する */
-function playDraft(w: World, n: number, m: number): void {
-  const d = w.draft!;
-  beginRound1(w);
-  for (let i = 0; i < 500 && d.phase !== 'done'; i++) {
-    const best = () => available(d).sort((a, b) => potentialOverall(b) - potentialOverall(a))[0].id;
-    if (d.phase === 'round1') submitRound1(w, best());
-    else if (currentTeam(d) === w.userTeamId) {
-      const ik = d.phase === 'ikusei';
-      const have = d.picks.filter((x) => x.teamId === w.userTeamId && x.ikusei === ik).length;
-      if (have < (ik ? m : n)) userPick(w, best());
-      else userPass(w);
-    }
-  }
 }
 
 describe('ドラフト', () => {

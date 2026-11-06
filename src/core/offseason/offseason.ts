@@ -11,7 +11,7 @@ import { fullName } from '../labels';
 import { NameRegistry } from '../names';
 import { overall, potentialOverall } from '../ratings';
 import { Rng } from '../rng';
-import { newSeason } from '../season/advance';
+import { newSeason, setStartFirstYearHook } from '../season/advance';
 import { standingsTable } from '../season/standings';
 import type { OffseasonState, World } from '../season/types';
 import type { MainPos, Player, PitcherRole } from '../types';
@@ -165,6 +165,23 @@ export function aiRosterManage(w: World, rng: Rng, teamId: number): void {
   }
 }
 
+/** 球団設立の年を始める：開幕前に、ドラフト → 戦力の整理 → キャンプを行う */
+export function startFirstYear(w: World): void {
+  w.offseason = { year: w.season.year - 1, firstYear: true, phase: 'draft', awards: [], retired: [], contracts: {}, released: [] };
+  w.draft = null;
+  ensureDraftCandidates(w);
+}
+
+/** 球団設立の年：ドラフトが終わっていれば、戦力の整理へ進める（AI球団の整理は自動）。何度呼んでもよい */
+export function syncFirstYear(w: World): void {
+  const off = w.offseason;
+  if (!off?.firstYear || off.phase !== 'draft' || w.draft?.phase !== 'done') return;
+  withRng(w, (rng) => {
+    for (const t of w.teams) if (t.id !== w.userTeamId) aiRosterManage(w, rng, t.id);
+  });
+  off.phase = 'roster';
+}
+
 /** 契約更改を終える（残っている交渉があれば進めない） */
 export function finishContracts(w: World): string | null {
   const off = w.offseason!;
@@ -250,6 +267,12 @@ export function finishCamp(w: World, userSiteId: string | null): string | null {
     return null;
   });
   if (why) return why;
+  if (w.offseason?.firstYear) {
+    // 球団設立の年：用意してあったシーズンがそのまま開幕する。シーズン中に視察するドラフト候補を作る
+    w.offseason = null;
+    ensureDraftCandidates(w);
+    return null;
+  }
   startNextSeason(w);
   return null;
 }
@@ -304,3 +327,5 @@ export function makeOffer(w: World, playerId: number, amount: number): { result:
   }
   return { result };
 }
+
+setStartFirstYearHook(startFirstYear);

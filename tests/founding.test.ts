@@ -4,6 +4,7 @@ import { ROSTER_LIMIT } from '../src/config/league';
 import { autoPick, canPick, chooseMethod, finishFounding, isRookieCandidate, pick, startFounding, unpick, type NewTeamInput } from '../src/core/founding';
 import { advanceDays } from '../src/core/season/advance';
 import type { LeagueConfig } from '../src/core/types';
+import { completeFirstYear } from './helpers';
 
 const cfg = (a = 7, b = 6): LeagueConfig => ({
   teamCounts: [a, b], games: null, interleague: { mode: 'period', games: 18 }, dh: [true, false], postseason: { teams: [3, 3], advantage: true },
@@ -35,6 +36,7 @@ describe('球団設立', () => {
       // 同名の選手はいない
       const names = w.players.map((p) => `${p.familyName} ${p.givenName}`);
       expect(new Set(names).size).toBe(names.length);
+      completeFirstYear(w);
       advanceDays(w, 20);
       expect(w.season.standings.first[me.id].w + w.season.standings.first[me.id].l + w.season.standings.first[me.id].t).toBeGreaterThan(0);
     });

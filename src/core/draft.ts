@@ -12,7 +12,7 @@ import { batterOverall, overall, pitcherOverall, potentialOverall } from './rati
 import { Rng } from './rng';
 import { winPct } from './season/standings';
 import { canAfford, pay, registerJoin } from './finance';
-import type { DraftState, World } from './season/types';
+import type { DraftEvent, DraftLottery, DraftState, World } from './season/types';
 import type { BatAbilities, FieldPos, MainPos, PitchAbilities, PitcherRole, Player } from './types';
 
 const BAT_KEYS = ['contact', 'power', 'speed', 'defense'] as const;
@@ -26,14 +26,18 @@ function withRng<T>(w: World, fn: (rng: Rng) => T): T {
   return out;
 }
 
-/** その年のドラフト候補を用意する（開幕と同時に作り、シーズン中に視察できる） */
+/**
+ * 今のドラフト（なければ候補を作る）。ふだんはそのシーズンの秋のドラフト（開幕と同時に候補を作り、シーズン中に視察できる）。
+ * 球団設立の年は、開幕前に行う最初のドラフト（前の年の秋）
+ */
 export function ensureDraftCandidates(w: World): DraftState {
-  return startDraft(w);
+  const first = !!w.offseason?.firstYear;
+  return startDraft(w, first ? w.season.year - 1 : w.season.year, first);
 }
 
 /** ドラフト候補を作る（すでにその年の分があればそれを返す） */
-export function startDraft(w: World): DraftState {
-  if (w.draft && w.draft.year === w.season.year) return w.draft;
+export function startDraft(w: World, year = w.season.year, firstYear = false): DraftState {
+  if (w.draft && w.draft.year === year) return w.draft;
   return withRng(w, (rng) => {
     const names = new NameRegistry(w.usedNames);
     const candidates: Player[] = [];
@@ -63,7 +67,10 @@ export function startDraft(w: World): DraftState {
     const aiTargets: DraftState['aiTargets'] = {};
     for (const t of w.teams) aiTargets[t.id] = [rng.int(AI_REGULAR_PICKS[0], AI_REGULAR_PICKS[1]), rng.int(0, AI_IKUSEI_PICKS_MAX)];
     w.draft = {
-      year: w.season.year,
+      year,
+      firstYear,
+      lottery: null,
+      events: [],
       phase: 'scouting',
       candidates,
       scout,
@@ -217,18 +224,20 @@ function addPick(w: World, teamId: number, p: Player, round: number, ikusei: boo
 /** 1位指名を始める */
 export function beginRound1(w: World): void {
   const d = w.draft!;
-  if (!w.season.postseason?.finished) throw new Error('ドラフト会議はポストシーズンの後です');
+  if (!d.firstYear && !w.season.postseason?.finished) throw new Error('ドラフト会議はポストシーズンの後です');
   d.phase = 'round1';
   d.round1Pending = w.teams.map((t) => t.id);
 }
 
 /**
- * 1位指名を出す（自球団の指名と、AI球団の指名を同時に）。重なれば抽選。
- * 外れた球団は指名し直し。自球団が外れたら、ここで止まって次の指名を待つ。
+ * 1位指名の入札を出す（自球団の入札と、AI球団の入札を同時に）。
+ * 自球団が入っていない競合は自動で抽選。自球団が入った競合は、くじ（lottery）を用意して止まる。
+ * 外れた球団は入札し直し。自球団が外れたら、次の入札を待つ。
  */
 export function submitRound1(w: World, userPickId: number | null): string | null {
   const d = w.draft!;
   const user = w.userTeamId;
+  if (d.lottery) return '先にくじを引いてください';
   if (d.round1Pending.includes(user)) {
     if (userPickId == null) return '指名する選手を選んでください';
     if (!available(d).some((p) => p.id === userPickId)) return 'その選手はもう指名されています';
@@ -236,35 +245,116 @@ export function submitRound1(w: World, userPickId: number | null): string | null
   }
   withRng(w, (rng) => {
     let first = true;
-    while (d.round1Pending.length > 0 && (first || !d.round1Pending.includes(user))) {
+    while (d.round1Pending.length > 0 && !d.lottery && (first || !d.round1Pending.includes(user))) {
       first = false;
-      const wants = new Map<number, number[]>(); // 選手 → 指名した球団
-      for (const t of d.round1Pending) {
-        const id = t === user ? userPickId! : aiChoose(w, rng, t)?.id;
-        if (id == null) continue;
-        if (!wants.has(id)) wants.set(id, []);
-        wants.get(id)!.push(t);
-      }
-      const losers: number[] = [];
-      for (const [id, teams] of wants) {
-        const p = d.candidates.find((x) => x.id === id)!;
-        const winner = teams.length === 1 ? teams[0] : rng.pick(teams);
-        if (teams.length > 1) d.log.push(`抽選：${fullName(p)}に${teams.length}球団（${teams.map((t) => teamName(w, t)).join('・')}）→ ${teamName(w, winner)}が交渉権`);
-        addPick(w, winner, p, 1, false);
-        for (const t of teams) if (t !== winner) losers.push(t);
-      }
-      d.round1Pending = losers;
+      round1Iteration(w, rng, userPickId);
     }
   });
-  if (d.round1Pending.length === 0) beginRegular(w);
+  if (d.round1Pending.length === 0 && !d.lottery) beginRegular(w);
   return null;
 }
 
-/** 2位以降の順番：レギュラーシーズンの勝率の低い球団から */
+/** 1回分の入札と、その結果（競合の抽選） */
+function round1Iteration(w: World, rng: Rng, userPickId: number | null): void {
+  const d = w.draft!;
+  const user = w.userTeamId;
+  const wants = new Map<number, number[]>(); // 選手 → 入札した球団
+  const bids: { teamId: number; playerId: number }[] = [];
+  for (const t of d.round1Pending) {
+    const id = t === user ? userPickId! : aiChoose(w, rng, t)?.id;
+    if (id == null) continue;
+    if (!wants.has(id)) wants.set(id, []);
+    wants.get(id)!.push(t);
+    bids.push({ teamId: t, playerId: id });
+  }
+  (d.events ??= []).push({ kind: 'bids', bids });
+  const losers: number[] = [];
+  for (const [id, teams] of wants) {
+    const p = d.candidates.find((x) => x.id === id)!;
+    if (teams.length === 1) {
+      addPick(w, teams[0], p, 1, false);
+      continue;
+    }
+    // くじ：競合した球団の数だけ封筒を並べ、当たりは1枚
+    const lot = { playerId: id, teams: rng.shuffle(teams), winning: rng.int(0, teams.length - 1), choices: {} as Record<number, number> };
+    if (teams.includes(user)) {
+      // 自球団より前の順番のAI球団は、先にくじを選んでおく
+      for (const t of lot.teams) {
+        if (t === user) break;
+        lot.choices[t] = pickFreeEnvelope(rng, lot);
+      }
+      d.lottery = lot;
+      continue;
+    }
+    for (const t of lot.teams) lot.choices[t] = pickFreeEnvelope(rng, lot);
+    const winner = settleLottery(w, lot, false);
+    for (const t of teams) if (t !== winner) losers.push(t);
+  }
+  // くじ待ちの球団は、まだ外れていない
+  d.round1Pending = losers;
+  if (d.lottery) for (const t of d.lottery.teams) if (!d.round1Pending.includes(t)) d.round1Pending.push(t);
+}
+
+/** まだ誰も選んでいない封筒を1枚選ぶ */
+function pickFreeEnvelope(rng: Rng, lot: { teams: number[]; choices: Record<number, number> }): number {
+  const used = new Set(Object.values(lot.choices));
+  const free = Array.from({ length: lot.teams.length }, (_, i) => i).filter((i) => !used.has(i));
+  return rng.pick(free);
+}
+
+/** くじを開ける：当たりの封筒を選んだ球団が交渉権を得る */
+function settleLottery(w: World, lot: DraftLottery, user: boolean): number {
+  const d = w.draft!;
+  const p = d.candidates.find((x) => x.id === lot.playerId)!;
+  const winner = Number(Object.entries(lot.choices).find(([, e]) => e === lot.winning)![0]);
+  d.log.push(`抽選：${fullName(p)}に${lot.teams.length}球団（${lot.teams.map((t) => teamName(w, t)).join('・')}）→ ${teamName(w, winner)}が交渉権`);
+  (d.events ??= []).push({ kind: 'lottery', playerId: lot.playerId, teams: lot.teams, winnerId: winner, winning: lot.winning, choices: { ...lot.choices }, user });
+  addPick(w, winner, p, 1, false);
+  return winner;
+}
+
+/** 自球団がくじを選ぶ（封筒の番号）。残りのAI球団も選び、開けて結果を決める。その後、1位指名を続ける */
+export function drawLottery(w: World, envelope: number): string | null {
+  const d = w.draft!;
+  const lot = d.lottery;
+  if (!lot) return 'くじはありません';
+  if (Object.values(lot.choices).includes(envelope) || envelope < 0 || envelope >= lot.teams.length) return 'そのくじは選べません';
+  withRng(w, (rng) => {
+    lot.choices[w.userTeamId] = envelope;
+    for (const t of lot.teams) if (lot.choices[t] == null) lot.choices[t] = pickFreeEnvelope(rng, lot);
+    const winner = settleLottery(w, lot, true);
+    d.lottery = null;
+    // 当たった球団は入札を終える。外れた球団は入札し直し
+    d.round1Pending = d.round1Pending.filter((t) => t !== winner);
+    // 自球団が当たったなら、残りのAI球団の入札を進める（自球団が外れたら、自球団の再入札を待つ）
+    while (d.round1Pending.length > 0 && !d.lottery && !d.round1Pending.includes(w.userTeamId)) round1Iteration(w, rng, null);
+  });
+  if (d.round1Pending.length === 0 && !d.lottery) beginRegular(w);
+  return null;
+}
+
+/** 画面で見せる出来事を取り出す（取り出したら消す） */
+export function takeDraftEvents(w: World): DraftEvent[] {
+  const d = w.draft;
+  if (!d?.events?.length) return [];
+  const out = d.events;
+  d.events = [];
+  return out;
+}
+
+/**
+ * 2位以降の順番：レギュラーシーズンの勝率の低い球団から。
+ * 球団設立の年は新球団が最初、ほかの球団はくじで決める。巡ごとに折り返す
+ */
 function beginRegular(w: World): void {
   const d = w.draft!;
   d.phase = 'regular';
-  d.order = w.teams.slice().sort((a, b) => winPct(w.season.standings.first[a.id]) - winPct(w.season.standings.first[b.id]) || a.id - b.id).map((t) => t.id);
+  if (d.firstYear) {
+    const others = withRng(w, (rng) => rng.shuffle(w.teams.filter((t) => t.id !== w.userTeamId).map((t) => t.id)));
+    d.order = w.teams.some((t) => t.id === w.userTeamId) ? [w.userTeamId, ...others] : others;
+  } else {
+    d.order = w.teams.slice().sort((a, b) => winPct(w.season.standings.first[a.id]) - winPct(w.season.standings.first[b.id]) || a.id - b.id).map((t) => t.id);
+  }
   d.round = 2;
   d.turn = 0;
   d.passed = [];
@@ -373,7 +463,7 @@ function finishDraft(w: World): void {
   const mine = d.picks.filter((x) => x.teamId === w.userTeamId);
   const total = mine.reduce((s, x) => s + x.bonus, 0);
   w.season.news.unshift({
-    date: w.season.postseason?.date ?? w.season.schedule.days[w.season.schedule.days.length - 1].date,
+    date: w.season.postseason?.date ?? (d.firstYear ? w.season.schedule.days[0].date : w.season.schedule.days[w.season.schedule.days.length - 1].date),
     text: `ドラフトで${mine.filter((x) => !x.ikusei).length}人（育成${mine.filter((x) => x.ikusei).length}人）が入団しました。契約金の合計は${total.toLocaleString()}万円です`,
   });
   // 指名されなかった候補は消える（名前は使用済みのまま）

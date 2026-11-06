@@ -84,6 +84,7 @@ export function renderContractTab(w: World): string {
       <p class="muted small">今の年俸総額：${moneyLabel(payroll(w))}</p></div>`;
   }
   const funds = availableFunds(w);
+  if (off.phase === 'draft') return '<div class="card"><p>球団設立の年は、まずドラフト会議を行います。そのあと、ここで戦力の整理をします（設立したばかりなので契約更改はありません）。</p></div>';
   if (off.phase === 'contracts') {
     const talks = Object.values(off.contracts);
     const pending = talks.filter((c) => c.status === 'pending');

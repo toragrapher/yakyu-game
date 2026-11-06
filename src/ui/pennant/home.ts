@@ -21,7 +21,7 @@ import { renderPostseason } from './postseasonView';
 import { CAMP_RANKS, CAMP_SITES } from '../../config/camp';
 import { SEATS } from '../../config/gate';
 import { availableFunds } from '../../core/finance';
-import { closeYear, finishCamp } from '../../core/offseason/offseason';
+import { closeYear, finishCamp, syncFirstYear } from '../../core/offseason/offseason';
 import { moneyLabel } from '../money';
 import { openReinforceTab } from '../reinforce';
 import { commitLocker } from '../../core/locker';
@@ -56,7 +56,7 @@ function renderStart(el: HTMLElement): void {
   });
   el.querySelector('#st-go')!.addEventListener('click', () => {
     const seed = Number((el.querySelector('#st-seed') as HTMLInputElement).value) || 1;
-    app.world = createWorld(seed, defaultConfig(), 2027, 1);
+    app.world = createWorld(seed, defaultConfig(), 2027, 1, true);
     app.lastGame = null;
     app.refresh();
   });
@@ -195,7 +195,7 @@ function offseasonPanel(w: World): string {
         <div class="small muted">${esc(site.note)}（効果×${mult}）</div></div><span class="small">${moneyLabel(cost)}</span></label>`;
     }).join('')}
     <p class="muted small">チケットの値段は、開幕前の今だけ「補強」の「お金」で変えられます。</p>
-    <button id="os-camp" style="width:100%;margin-top:8px">キャンプを行い、${w.season.year + 1}年の開幕へ</button>`;
+    <button id="os-camp" style="width:100%;margin-top:8px">キャンプを行い、${off.firstYear ? w.season.year : w.season.year + 1}年の開幕へ</button>`;
 }
 
 /** 年度を締めたあとの記録（表彰・引退・決算） */
@@ -215,6 +215,19 @@ function yearSummary(w: World): string {
       <p class="muted">リーグ全体で${off.retired.length}人が引退しました。</p></div>
     ${w.finance ? `<h2>${off.year}年の収支（${moneyLabel(net)}）</h2><div class="card"><table class="box">${ledger.map((x) => `<tr><td class="tl small">${esc(x.label)}</td><td class="${x.amount < 0 ? 'lose' : 'win'}" style="text-align:right;white-space:nowrap">${x.amount >= 0 ? '+' : ''}${moneyLabel(x.amount)}</td></tr>`).join('')}</table>
       <p class="small">残高 <b>${moneyLabel(w.finance.balance)}</b></p></div>` : ''}`;
+}
+
+/** 球団設立の年：開幕の前に、ドラフト → 戦力の整理 → キャンプ */
+function firstYearPanel(w: World): string {
+  const off = w.offseason!;
+  const steps = ['ドラフト会議', '戦力の整理', 'キャンプ', '開幕'];
+  const cur = off.phase === 'draft' ? 0 : off.phase === 'roster' ? 1 : 2;
+  const bar = `<div class="seg" style="margin-bottom:8px">${steps.map((x, i) => `<button class="${i === cur ? 'on' : ''}" disabled>${x}</button>`).join('')}</div>`;
+  if (off.phase === 'draft') {
+    return `${bar}<p><b>球団設立の年です。</b>開幕の前に、まず${off.year}年のドラフト会議で新人を指名します。</p>
+      <button id="go-draft" style="width:100%">ドラフト会議へ（補強）</button>`;
+  }
+  return bar + offseasonPanel(w);
 }
 
 /** レギュラーシーズン後の「次の試合」欄 */
@@ -248,6 +261,7 @@ function postseasonPanel(w: World, myRank: number): string {
 export function renderHome(el: HTMLElement): void {
   const w = app.world;
   if (!w) return renderStart(el);
+  syncFirstYear(w);
   const me = w.teams.find((t) => t.id === w.userTeamId)!;
   const st = w.season.standings.first[me.id];
   const farm = w.season.standings.farm[me.id];
@@ -304,9 +318,9 @@ export function renderHome(el: HTMLElement): void {
     </div>
 
     <div class="card">
-      ${next && opp ? `<div class="row" style="justify-content:space-between"><b>次の試合　${dateLabel(next.date)}</b>${next.interleague ? '<span class="chip" style="background:var(--line)">交流戦</span>' : ''}</div>${probable}` : w.season.finished ? postseasonPanel(w, myRow + 1) : ''}
+      ${w.offseason?.firstYear ? firstYearPanel(w) : next && opp ? `<div class="row" style="justify-content:space-between"><b>次の試合　${dateLabel(next.date)}</b>${next.interleague ? '<span class="chip" style="background:var(--line)">交流戦</span>' : ''}</div>${probable}` : w.season.finished ? postseasonPanel(w, myRow + 1) : ''}
       ${app.busy && !w.season.finished ? `<div class="progress" style="margin-top:10px"><span style="width:${Math.round(app.progress * 100)}%"></span></div><p class="muted">進めています…</p>` : ''}
-      ${w.season.finished ? '' : `
+      ${w.season.finished || w.offseason?.firstYear ? '' : `
       <div class="btns" style="margin-top:10px">
         <button data-run="1" ${app.busy ? 'disabled' : ''}>1日進む</button>
         <button data-run="7" ${app.busy ? 'disabled' : ''}>1週間進む</button>
@@ -314,9 +328,9 @@ export function renderHome(el: HTMLElement): void {
       </div>`}
     </div>
 
-    ${w.offseason ? yearSummary(w) : w.season.postseason ? renderPostseason(w) : ''}
+    ${w.offseason && !w.offseason.firstYear ? yearSummary(w) : w.season.postseason ? renderPostseason(w) : ''}
 
-    ${w.season.dayIndex === 0 && w.quickStart ? `
+    ${w.quickStart && w.offseason?.firstYear && w.draft?.phase === 'scouting' ? `
     <div class="card">
       <div class="row"><label>自球団（仮） <select id="pick-team">${w.teams.map((t) => `<option value="${t.id}" ${t.id === w.userTeamId ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label></div>
       <p class="muted small">開幕前だけ変えられます。</p>

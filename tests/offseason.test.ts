@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CAMP_RANKS, CAMP_SITES } from '../src/config/camp';
 import { ROSTER_LIMIT } from '../src/config/league';
-import { advanceDraft, available, beginRound1, currentTeam, submitRound1, userPass, userPick } from '../src/core/draft';
 import { availableFunds } from '../src/core/finance';
 import { acceptChance, minOffer, offer } from '../src/core/offseason/contract';
 import {
@@ -12,6 +11,7 @@ import { Rng } from '../src/core/rng';
 import { advanceDays, createWorld } from '../src/core/season/advance';
 import { runPostseason } from '../src/core/season/postseason';
 import type { World } from '../src/core/season/types';
+import { playDraft } from './helpers';
 
 const cfg = () => ({ teamCounts: [6, 6] as [number, number], games: null, interleague: { mode: 'period' as const, games: 18 }, dh: [true, true] as [boolean, boolean], postseason: { teams: [3, 3] as [number, number], advantage: true } });
 
@@ -20,17 +20,7 @@ function toAfterDraft(seed: number, userTeam = 1): World {
   const w = createWorld(seed, cfg(), 2027, userTeam);
   advanceDays(w, 99999);
   runPostseason(w);
-  const d = w.draft!;
-  beginRound1(w);
-  for (let i = 0; i < 500 && d.phase !== 'done'; i++) {
-    const best = () => available(d)[0].id;
-    if (d.phase === 'round1') submitRound1(w, best());
-    else if (currentTeam(d) === w.userTeamId) {
-      const mine = d.picks.filter((x) => x.teamId === w.userTeamId && !x.ikusei).length;
-      if (d.phase === 'regular' && mine < 5) userPick(w, best());
-      else userPass(w);
-    } else advanceDraft(w);
-  }
+  playDraft(w, 5, 0);
   return w;
 }
 

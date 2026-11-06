@@ -186,8 +186,30 @@ export interface DraftPick {
   salary: number;
 }
 
+/** ドラフトの1位のくじ（自球団が競合したとき、ユーザーが引く） */
+export interface DraftLottery {
+  playerId: number;
+  /** くじを選ぶ順の球団 */
+  teams: number[];
+  /** 当たりのくじの番号（0始まり） */
+  winning: number;
+  /** 球団ごとに選んだくじの番号 */
+  choices: Record<number, number>;
+}
+
+/** 画面で演出するための出来事（入札の発表、抽選の結果） */
+export type DraftEvent =
+  | { kind: 'bids'; bids: { teamId: number; playerId: number }[] }
+  | { kind: 'lottery'; playerId: number; teams: number[]; winnerId: number; winning: number; choices: Record<number, number>; user: boolean };
+
 export interface DraftState {
   year: number;
+  /** 球団設立の年の、最初のドラフト */
+  firstYear?: boolean;
+  /** 自球団が引くくじ（引くまで1位指名は止まる） */
+  lottery?: DraftLottery | null;
+  /** まだ画面で見せていない出来事 */
+  events?: DraftEvent[];
   phase: 'scouting' | 'round1' | 'regular' | 'ikusei' | 'done';
   candidates: Player[];
   scout: Record<number, ScoutInfo>;
@@ -246,7 +268,9 @@ export interface ContractTalk {
 /** オフシーズンの進み具合 */
 export interface OffseasonState {
   year: number;
-  phase: 'contracts' | 'roster' | 'camp';
+  /** 球団設立の年（ドラフト → 戦力の整理 → キャンプ → 開幕。契約更改はない） */
+  firstYear?: boolean;
+  phase: 'draft' | 'contracts' | 'roster' | 'camp';
   awards: Award[];
   /** 引退した選手（名前と年齢・成績の要約） */
   retired: { name: string; teamId: number; age: number; note: string }[];

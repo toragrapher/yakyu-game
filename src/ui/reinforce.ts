@@ -1,7 +1,7 @@
 // 補強の画面：ドラフト候補（シーズン中の視察とドラフト会議）、助っ人外国人とスカウト配置（第2段階）
 import { MAX_IKUSEI_PICKS, MAX_REGULAR_PICKS } from '../config/draft';
 import {
-  available, beginRound1, currentTeam, ensureDraftCandidates, scoutReport, submitRound1, userPass, userPick, visit,
+  available, beginRound1, currentTeam, drawLottery, ensureDraftCandidates, scoutReport, submitRound1, takeDraftEvents, userPass, userPick, visit,
   visitedThisMonth, visitsLeftThisMonth,
 } from '../core/draft';
 import type { World } from '../core/season/types';
@@ -10,6 +10,8 @@ import { rankOf } from '../core/ratings';
 import type { DraftState } from '../core/season/types';
 import type { Player } from '../core/types';
 import { app } from './app';
+import { runDraftShow } from './draftShow';
+import { syncFirstYear } from '../core/offseason/offseason';
 import { bindContractTab, bindMoneyTab, renderContractTab, renderMoneyTab } from './contracts';
 import { availableFunds } from '../core/finance';
 import { moneyLabel } from './money';
@@ -85,27 +87,32 @@ export function renderReinforce(el: HTMLElement): void {
 }
 
 function renderDraft(el: HTMLElement, w: World, tabs: string): void {
-  const d = w.draft && w.draft.year === w.season.year ? w.draft : ensureDraftCandidates(w);
+  syncFirstYear(w);
+  const d = ensureDraftCandidates(w);
   const me = w.userTeamId;
-  const myTurn = (d.phase === 'round1' && d.round1Pending.includes(me)) || ((d.phase === 'regular' || d.phase === 'ikusei') && currentTeam(d) === me);
+  const myTurn = (d.phase === 'round1' && d.round1Pending.includes(me) && !d.lottery) || ((d.phase === 'regular' || d.phase === 'ikusei') && currentTeam(d) === me);
   const mine = d.picks.filter((x) => x.teamId === me);
 
   // ---- 状況の説明 ----
   let status = '';
   if (d.phase === 'scouting') {
-    const ready = !!w.season.postseason?.finished;
+    const ready = !!w.season.postseason?.finished || !!d.firstYear;
     status = `<p>候補を見比べ、気になる選手を<b>視察</b>すると、能力の幅が狭まります。視察は<b>1か月に3回まで</b>、同じ選手は同じ月に1回までです（今月の残り${visitsLeftThisMonth(w)}回）。</p>
       ${ready ? '<button id="dr-begin" style="width:100%">ドラフト会議を始める（1位指名へ）</button>' : '<p class="muted small">ドラフト会議はポストシーズンの後に行います。</p>'}`;
   } else if (d.phase === 'round1') {
     const lost = mine.length === 0 && d.log.length > 0;
-    status = `<p><b>1位指名</b>：${lost ? '<span class="lose">抽選に外れました。</span>もう一度、' : ''}指名する選手の「指名」を押してください。全球団が同時に指名し、重なれば抽選です。</p>`;
+    status = d.lottery
+      ? '<p><b>1位指名</b>：競合しました。くじを引いてください。</p><button id="dr-lottery" style="width:100%">くじを引く</button>'
+      : mine.some((x) => x.round === 1)
+        ? '<p><b>1位指名</b>：交渉権を獲得しました。ほかの球団の外れ1位を待っています。</p>'
+        : `<p><b>1位指名</b>：${lost ? '<span class="lose">抽選に外れました。</span>もう一度、' : ''}入札する選手の「指名」を押してください。全球団が同時に入札し、重なればくじ引きです。</p>`;
   } else if (d.phase === 'regular' || d.phase === 'ikusei') {
     const ik = d.phase === 'ikusei';
     const count = mine.filter((x) => x.ikusei === ik).length;
     status = `<p><b>${ik ? `育成ドラフト ${d.round}巡目` : `${d.round}位指名`}</b>　自球団の番です（${ik ? '育成' : '支配下'} ${count}/${ik ? MAX_IKUSEI_PICKS : MAX_REGULAR_PICKS}人）。</p>
       <button class="sub" id="dr-pass" style="width:100%">${ik ? '育成の指名を終える' : '支配下の指名を終える（育成ドラフトへ）'}</button>`;
   } else {
-    status = `<p><b>ドラフト会議が終わりました。</b>指名した選手は入団しました。次は「メイン」で年度を締めます。</p>
+    status = `<p><b>ドラフト会議が終わりました。</b>指名した選手は入団しました。${d.firstYear ? '次は「メイン」から戦力の整理とキャンプへ進みます。' : '次は「メイン」で年度を締めます。'}</p>
       <button id="dr-home" style="width:100%">メインへ</button>`;
   }
 
@@ -143,7 +150,7 @@ function renderDraft(el: HTMLElement, w: World, tabs: string): void {
   const logs = showAllLog ? d.log : d.log.slice(-8);
   el.innerHTML = `
     ${tabs}
-    <h2>ドラフト ${d.year}</h2>
+    <h2>${d.year}年 ドラフト会議${d.firstYear ? '（球団設立の年）' : ''}</h2>
     <div class="card">${status}</div>
     ${pickedList}
     ${d.log.length ? `<h2>指名の経過</h2><div class="card small">${logs.map((l) => `<div>${esc(l)}</div>`).join('')}
@@ -183,6 +190,19 @@ function renderDraft(el: HTMLElement, w: World, tabs: string): void {
     app.refresh();
   });
   on('[data-career]', (b) => { career = b.dataset.career as typeof career; shown = 40; app.refresh(); });
+  // 入札の発表とくじの演出
+  const startShow = () => {
+    const evs = takeDraftEvents(w);
+    if (evs.length || d.lottery) {
+      void runDraftShow(w, evs, d.lottery, (i) => {
+        const why = drawLottery(w, i);
+        if (why) alert(why);
+        app.refresh();
+      }, () => app.refresh());
+    }
+  };
+  on('#dr-lottery', startShow);
+  startShow();
   on('[data-pos]', (b) => { pos = b.dataset.pos as typeof pos; shown = 40; app.refresh(); });
   on('[data-sort]', (b) => { sortKey = b.dataset.sort as typeof sortKey; shown = 40; app.refresh(); });
 }

@@ -12,6 +12,7 @@ import { overall, potentialOverall } from './ratings';
 import { Rng } from './rng';
 import { salaryFor } from './salary';
 import { newSeason } from './season/advance';
+import { startFirstYear } from './offseason/offseason';
 import { ensureDraftCandidates } from './draft';
 import { initFinance } from './finance';
 import { initFans } from './gate';
@@ -261,5 +262,7 @@ export function finishFounding(f: Founding): World {
   ensureDraftCandidates(w);
   initFans(w, new Rng(f.seed ^ 0x5eed));
   initFinance(w);
+  // 開幕前に、ドラフト → 戦力の整理 → キャンプを行う
+  startFirstYear(w);
   return w;
 }

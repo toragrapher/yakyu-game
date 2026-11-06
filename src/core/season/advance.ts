@@ -67,7 +67,8 @@ export function newSeason(rng: Rng, teams: Team[], players: Player[], config: Le
 }
 
 /** AI球団だけで世界を作る（球団設立の画面ができるまでの仮。userTeamId の球団を自球団として扱う） */
-export function createWorld(seed: number, config: LeagueConfig, year: number, userTeamId = 1): World {
+/** firstYear なら、球団設立の年として開幕前のドラフトから始める */
+export function createWorld(seed: number, config: LeagueConfig, year: number, userTeamId = 1, firstYear = false): World {
   const rng = new Rng(seed);
   const names = new NameRegistry();
   const { teams, players } = generateAiTeams(rng, names, config.teamCounts);
@@ -90,7 +91,14 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
   ensureDraftCandidates(w);
   initFans(w, new Rng(seed ^ 0x5eed));
   initFinance(w);
+  if (firstYear) startFirstYearHook?.(w);
   return w;
+}
+
+/** 球団設立の年を始める処理（offseason から登録する。ファイルどうしの循環を避けるため） */
+let startFirstYearHook: ((w: World) => void) | null = null;
+export function setStartFirstYearHook(fn: (w: World) => void): void {
+  startFirstYearHook = fn;
 }
 
 /** 日をまたぐ処理：疲労の回復、調子の波、登板記録のずれ、登録日数 */
@@ -223,7 +231,8 @@ export interface DayOutcome {
 /** 1日進める（その日の一軍・二軍の全試合を行う） */
 export function advanceDay(w: World, keepResult = false): DayOutcome | null {
   const s = w.season;
-  if (s.finished) return null;
+  // 開幕前（球団設立の年のドラフト・キャンプの前）やオフシーズン中は進めない
+  if (s.finished || (w.offseason && s.dayIndex === 0)) return null;
   const day = s.schedule.days[s.dayIndex];
   const rng = new Rng(0);
   rng.state = w.rngState;
