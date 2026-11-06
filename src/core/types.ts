@@ -76,6 +76,8 @@ export interface Player {
   teamId: number | null; // 所属球団（null＝無所属）
   level: Level;
   retired: boolean;
+  /** 前の年の終わりの総合評価（引退の判定に使う） */
+  prevOverall?: number;
 }
 
 /** 球場の特性 */

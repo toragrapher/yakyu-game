@@ -171,6 +171,59 @@ export interface DraftState {
   aiTargets: Record<number, [number, number]>;
 }
 
+/** 表彰 */
+export interface Award {
+  league: 0 | 1;
+  title: string;
+  playerId: number;
+  playerName: string;
+  teamId: number;
+  value: string;
+}
+
+/** 年ごとの記録 */
+export interface YearRecord {
+  year: number;
+  /** リーグごとの順位（球団IDの順） */
+  standings: [number[], number[]];
+  championId: number | null;
+  leagueWinners: [number | null, number | null];
+  awards: Award[];
+  /** 自球団の成績 */
+  user: { w: number; l: number; t: number; rank: number } | null;
+}
+
+/** 契約更改の1人分 */
+export interface ContractTalk {
+  playerId: number;
+  /** 今の年俸と希望額（万円） */
+  current: number;
+  wish: number;
+  /** 断られた回数 */
+  refused: number;
+  status: 'pending' | 'agreed' | 'left';
+  /** 合意した年俸 */
+  salary: number | null;
+}
+
+/** オフシーズンの進み具合 */
+export interface OffseasonState {
+  year: number;
+  phase: 'contracts' | 'roster' | 'camp';
+  awards: Award[];
+  /** 引退した選手（名前と年齢・成績の要約） */
+  retired: { name: string; teamId: number; age: number; note: string }[];
+  contracts: Record<number, ContractTalk>;
+  /** 自由契約にした選手 */
+  released: { name: string; teamId: number }[];
+}
+
+/** 自球団のお金 */
+export interface Finance {
+  balance: number;
+  ledger: { year: number; label: string; amount: number }[];
+}
+
 export interface World {
   seed: number;
   rngState: number;
@@ -186,4 +239,10 @@ export interface World {
   season: SeasonState;
   /** ドラフト（ポストシーズンの後） */
   draft?: DraftState | null;
+  /** オフシーズン（年度を締めてから、翌年の開幕まで） */
+  offseason?: OffseasonState | null;
+  /** 年ごとの記録 */
+  history?: YearRecord[];
+  /** 自球団のお金 */
+  finance?: Finance;
 }

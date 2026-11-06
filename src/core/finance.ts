@@ -1,0 +1,82 @@
+// 自球団のお金（design.md 7.0）：初年度の支給、ドラフト契約金・キャンプ費用の支払い、決算とスポンサー収益
+import {
+  DRAFT_COST_ESTIMATE, INITIAL_GRANT_RATE, OPERATING_COST, RAISE_ESTIMATE_RATE, SPONSOR_BASE, SPONSOR_CHAMPION,
+  SPONSOR_LEAGUE_WIN, SPONSOR_PER_STAR, SPONSOR_PER_TITLE, SPONSOR_POSTSEASON, SPONSOR_RANK_BONUS, SPONSOR_STAR_OVERALL,
+} from '../config/budget';
+import { overall } from './ratings';
+import { standingsTable } from './season/standings';
+import type { Award, Finance, World } from './season/types';
+
+/** 自球団の支配下・育成の年俸総額（万円） */
+export function payroll(w: World): number {
+  return w.players.filter((p) => p.teamId === w.userTeamId && !p.retired).reduce((s, p) => s + p.salary, 0);
+}
+
+/** 初年度の支給額（必要資金 × 1.1） */
+export function initialGrant(w: World): number {
+  const pr = payroll(w);
+  return Math.round((pr + DRAFT_COST_ESTIMATE + pr * RAISE_ESTIMATE_RATE + OPERATING_COST) * INITIAL_GRANT_RATE);
+}
+
+/** お金の記録を始める（自球団があるときだけ） */
+export function initFinance(w: World): void {
+  if (!w.teams.some((t) => t.id === w.userTeamId) || w.finance) return;
+  const grant = initialGrant(w);
+  w.finance = { balance: grant, ledger: [{ year: w.season.year, label: 'オーナーからの初年度資金', amount: grant }] };
+}
+
+/** 入出金を記録する（amount は入金がプラス、支払いがマイナス） */
+export function pay(w: World, label: string, amount: number): void {
+  const f = w.finance;
+  if (!f) return;
+  f.balance += amount;
+  f.ledger.push({ year: w.season.year, label, amount });
+}
+
+/**
+ * これから払う支出の見込み：シーズン中は今年の年俸と運営費（年度を締めるときに払う）、
+ * オフシーズンは来年の年俸と運営費。どちらも「今の年俸総額＋運営費」で数える
+ */
+export function pendingCosts(w: World): number {
+  return payroll(w) + OPERATING_COST;
+}
+
+/** 使える資金 ＝ 残高 − これから払う年俸と運営費の見込み */
+export function availableFunds(w: World): number {
+  if (!w.finance) return Infinity;
+  return w.finance.balance - pendingCosts(w);
+}
+
+export function canAfford(w: World, cost: number): boolean {
+  return availableFunds(w) >= cost;
+}
+
+/** スポンサー収益の内訳 */
+export function sponsorIncome(w: World, awards: Award[]): { label: string; amount: number }[] {
+  const me = w.teams.find((t) => t.id === w.userTeamId);
+  if (!me) return [];
+  const rank = standingsTable(w, 'first', me.league).findIndex((r) => r.teamId === me.id);
+  const ps = w.season.postseason;
+  const items = [
+    { label: 'スポンサー収益（基本）', amount: SPONSOR_BASE },
+    { label: `順位（${rank + 1}位）`, amount: SPONSOR_RANK_BONUS[Math.min(rank, SPONSOR_RANK_BONUS.length - 1)] },
+  ];
+  if (ps?.seeds[me.league].includes(me.id)) items.push({ label: 'ポストシーズン進出', amount: SPONSOR_POSTSEASON });
+  if (ps?.leagueWinners[me.league] === me.id) items.push({ label: 'リーグ優勝', amount: SPONSOR_LEAGUE_WIN });
+  if (ps?.championId === me.id) items.push({ label: '日本一', amount: SPONSOR_CHAMPION });
+  const titles = new Set(awards.filter((a) => a.teamId === me.id).map((a) => a.playerId)).size;
+  if (titles) items.push({ label: `タイトル獲得選手（${titles}人）`, amount: titles * SPONSOR_PER_TITLE });
+  const stars = w.players.filter((p) => p.teamId === me.id && !p.retired && overall(p) >= SPONSOR_STAR_OVERALL).length;
+  if (stars) items.push({ label: `スター選手（総合${SPONSOR_STAR_OVERALL}以上 ${stars}人）`, amount: stars * SPONSOR_PER_STAR });
+  return items;
+}
+
+/** 決算：年俸と運営費を払い、スポンサー収益を受け取る */
+export function settleYear(w: World, awards: Award[]): void {
+  if (!w.finance) return;
+  pay(w, '選手の年俸', -payroll(w));
+  pay(w, '運営費', -OPERATING_COST);
+  for (const x of sponsorIncome(w, awards)) pay(w, x.label, x.amount);
+}
+
+export type { Finance };

@@ -9,6 +9,7 @@ import type { GameResult, GameTeam } from '../sim/types';
 import { weatherLabel } from '../sim/weather';
 import { generateAiTeams } from '../generate/team';
 import { ensureDraftCandidates } from '../draft';
+import { initFinance } from '../finance';
 import type { LeagueConfig, Player, Team } from '../types';
 import { daysBetween, monthOf } from './dates';
 import { selectFirstTeam } from './firstTeam';
@@ -84,6 +85,7 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
   };
   // その年のドラフト候補（シーズン中に視察できる）
   ensureDraftCandidates(w);
+  initFinance(w);
   return w;
 }
 

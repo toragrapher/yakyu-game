@@ -11,6 +11,7 @@ import { NameRegistry } from './names';
 import { batterOverall, overall, pitcherOverall, potentialOverall } from './ratings';
 import { Rng } from './rng';
 import { winPct } from './season/standings';
+import { canAfford, pay } from './finance';
 import type { DraftState, World } from './season/types';
 import type { BatAbilities, FieldPos, MainPos, PitchAbilities, PitcherRole, Player } from './types';
 
@@ -195,14 +196,21 @@ function teamName(w: World, id: number): string {
   return w.teams.find((t) => t.id === id)!.name;
 }
 
+/** その順位の契約金（万円） */
+export function bonusFor(round: number, ikusei: boolean): number {
+  return ikusei ? IKUSEI_BONUS : SIGNING_BONUS[Math.min(round - 1, SIGNING_BONUS.length - 1)];
+}
+
 function addPick(w: World, teamId: number, p: Player, round: number, ikusei: boolean): void {
   const d = w.draft!;
-  const i = Math.min(round - 1, SIGNING_BONUS.length - 1);
+  const bonus = bonusFor(round, ikusei);
   d.picks.push({
     round, ikusei, teamId, playerId: p.id,
-    bonus: ikusei ? IKUSEI_BONUS : SIGNING_BONUS[i],
+    bonus,
     salary: ikusei ? IKUSEI_SALARY : ROOKIE_SALARY[Math.min(round - 1, ROOKIE_SALARY.length - 1)],
   });
+  // 自球団は指名のときに契約金を払う
+  if (teamId === w.userTeamId) pay(w, `ドラフト契約金（${fullName(p)}）`, -bonus);
   d.log.push(`${ikusei ? `育成${round}位` : `${round}位`}：${teamName(w, teamId)} → ${fullName(p)}`);
 }
 
@@ -224,6 +232,7 @@ export function submitRound1(w: World, userPickId: number | null): string | null
   if (d.round1Pending.includes(user)) {
     if (userPickId == null) return '指名する選手を選んでください';
     if (!available(d).some((p) => p.id === userPickId)) return 'その選手はもう指名されています';
+    if (!canAfford(w, bonusFor(1, false))) return 'お金が足りないため、1位の契約金を払えません';
   }
   withRng(w, (rng) => {
     let first = true;
@@ -329,6 +338,7 @@ export function userPick(w: World, id: number): string | null {
   const have = countPicks(d, w.userTeamId, ik);
   if (!ik && have >= MAX_REGULAR_PICKS) return `支配下の指名は${MAX_REGULAR_PICKS}人までです`;
   if (ik && have >= MAX_IKUSEI_PICKS) return `育成の指名は${MAX_IKUSEI_PICKS}人までです`;
+  if (!canAfford(w, bonusFor(ik ? have + 1 : d.round, ik))) return 'お金が足りないため、契約金を払えません';
   addPick(w, w.userTeamId, d.candidates.find((p) => p.id === id)!, ik ? have + 1 : d.round, ik);
   nextTurn(w);
   advanceDraft(w);

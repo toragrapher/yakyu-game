@@ -10,6 +10,9 @@ import { rankOf } from '../core/ratings';
 import type { DraftState } from '../core/season/types';
 import type { Player } from '../core/types';
 import { app } from './app';
+import { bindContractTab, renderContractTab, renderMoneyTab } from './contracts';
+import { availableFunds } from '../core/finance';
+import { moneyLabel } from './money';
 import { esc, teamChip } from './common';
 
 const CAREER_LABEL = { highSchool: '高校', college: '大学', industrial: '社会人' } as const;
@@ -20,7 +23,12 @@ let pos: 'all' | 'P' | 'C' | 'IF' | 'OF' = 'all';
 let sortKey: 'pot' | 'now' | 'age' = 'pot';
 let shown = 40;
 let showAllLog = false;
-let tab: 'draft' | 'foreign' | 'scout' = 'draft';
+let tab: 'draft' | 'contract' | 'money' | 'foreign' | 'scout' = 'draft';
+
+/** ほかの画面から、開くタブを指定する */
+export function openReinforceTab(t: typeof tab): void {
+  tab = t;
+}
 
 /** ランクの幅（例：「C〜A」。同じなら「B」） */
 function rankRange([lo, hi]: [number, number]): string {
@@ -52,11 +60,24 @@ function candidateRow(w: World, d: DraftState, p: Player, canPick: boolean): str
 
 export function renderReinforce(el: HTMLElement): void {
   const w = app.world!;
+  const items: [typeof tab, string][] = [['draft', 'ドラフト'], ['contract', '契約更改'], ['money', 'お金'], ['foreign', '助っ人外国人'], ['scout', 'スカウト配置']];
   const tabs = `<h1>補強</h1>
-    <div class="seg"><button class="${tab === 'draft' ? 'on' : ''}" data-tab="draft">ドラフト</button><button class="${tab === 'foreign' ? 'on' : ''}" data-tab="foreign">助っ人外国人</button><button class="${tab === 'scout' ? 'on' : ''}" data-tab="scout">スカウト配置</button></div>`;
+    <div class="teamtabs" style="margin-bottom:10px">${items.map(([k, l]) => `<button class="${tab === k ? '' : 'sub'}" data-tab="${k}">${l}${k === 'contract' && w.offseason && w.offseason.phase !== 'camp' ? '<span class="nav-dot" style="top:2px;right:2px"></span>' : ''}</button>`).join('')}</div>`;
+  const bindTabs = () => el.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab as typeof tab; app.refresh(); }));
+  if (tab === 'contract') {
+    el.innerHTML = tabs + renderContractTab(w);
+    bindTabs();
+    bindContractTab(el, w);
+    return;
+  }
+  if (tab === 'money') {
+    el.innerHTML = tabs + renderMoneyTab(w);
+    bindTabs();
+    return;
+  }
   if (tab !== 'draft') {
     el.innerHTML = `${tabs}<div class="card"><p>${tab === 'foreign' ? '助っ人外国人の獲得' : '地域ごとのスカウトの配置'}は、第2段階で追加します。</p></div>`;
-    el.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab as typeof tab; app.refresh(); }));
+    bindTabs();
     return;
   }
   renderDraft(el, w, tabs);
@@ -83,9 +104,11 @@ function renderDraft(el: HTMLElement, w: World, tabs: string): void {
     status = `<p><b>${ik ? `育成ドラフト ${d.round}巡目` : `${d.round}位指名`}</b>　自球団の番です（${ik ? '育成' : '支配下'} ${count}/${ik ? MAX_IKUSEI_PICKS : MAX_REGULAR_PICKS}人）。</p>
       <button class="sub" id="dr-pass" style="width:100%">${ik ? '育成の指名を終える' : '支配下の指名を終える（育成ドラフトへ）'}</button>`;
   } else {
-    status = `<p><b>ドラフト会議が終わりました。</b>指名した選手は入団しました。</p>
-      <button id="dr-home" style="width:100%">ホームへ</button>`;
+    status = `<p><b>ドラフト会議が終わりました。</b>指名した選手は入団しました。次は「メイン」で年度を締めます。</p>
+      <button id="dr-home" style="width:100%">メインへ</button>`;
   }
+
+  if (w.finance && d.phase !== 'done') status += `<p class="muted small">使える資金：${moneyLabel(availableFunds(w))}（契約金は指名のときに払います）</p>`;
 
   // ---- 自球団の指名 ----
   const pickedList = mine.length
@@ -95,7 +118,7 @@ function renderDraft(el: HTMLElement, w: World, tabs: string): void {
         const posL = p.mainPos === 'P' ? ROLE_LABEL[p.role!] : POS_LABEL[p.mainPos];
         return `<tr><td class="tl">${x.ikusei ? '育成' : ''}${x.round}位</td><td class="tl">${esc(fullName(p))} <span class="muted small">${posL}・${CAREER_LABEL[p.career]}</span></td><td>${x.bonus.toLocaleString()}万</td><td>${x.salary.toLocaleString()}万</td></tr>`;
       }).join('')}</table>
-      <p class="muted small">契約金の合計 ${mine.reduce((s, x) => s + x.bonus, 0).toLocaleString()}万円（残高からの支払いはステップ9で組み込みます）</p></div>`
+      <p class="muted small">契約金の合計 ${mine.reduce((s, x) => s + x.bonus, 0).toLocaleString()}万円（指名のときに残高から払いました）</p></div>`
     : '';
 
   // ---- 候補一覧 ----

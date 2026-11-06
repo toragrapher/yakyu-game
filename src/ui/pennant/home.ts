@@ -18,6 +18,11 @@ import { resetWizard } from '../founding/wizard';
 import { logoSvg } from '../logo';
 import { activeSeries, advancePostseasonDay, startPostseason } from '../../core/season/postseason';
 import { renderPostseason } from './postseasonView';
+import { CAMP_RANKS, CAMP_SITES } from '../../config/camp';
+import { availableFunds } from '../../core/finance';
+import { closeYear, finishCamp } from '../../core/offseason/offseason';
+import { moneyLabel } from '../money';
+import { openReinforceTab } from '../reinforce';
 import { commitLocker } from '../../core/locker';
 import { todayOf } from '../../core/draft';
 
@@ -150,6 +155,49 @@ function runPost(mode: 'day' | 'end'): void {
   tick();
 }
 
+/** キャンプ地の選択（画面を描き直しても残す） */
+let campChoice: string = CAMP_SITES.find((x) => x.rank === 'B')!.id;
+
+/** ドラフトの後の流れ：年度を締める → 契約更改 → 戦力の整理 → キャンプ → 翌年 */
+function offseasonPanel(w: World): string {
+  const off = w.offseason;
+  if (!off) {
+    return `<p class="small">ドラフト会議が終わりました。<b>年度を締める</b>と、表彰・成長と衰え・引退・決算（年俸の支払いとスポンサー収益）を行います。</p>
+      <button id="os-close" style="width:100%">${w.season.year}年度を締める</button>`;
+  }
+  if (off.phase === 'contracts') return `<p><b>契約更改</b>：自球団の選手と年俸を交渉します。</p><button id="go-contract" style="width:100%">契約更改へ（補強）</button>`;
+  if (off.phase === 'roster') return `<p><b>戦力の整理</b>：支配下を70人以内にします（自由契約・育成からの昇格）。</p><button id="go-contract" style="width:100%">戦力の整理へ（補強）</button>`;
+  const funds = availableFunds(w);
+  return `<p><b>キャンプ</b>：キャンプ地を選ぶと、全選手の能力が上がります。ランクが高いほど効果が大きく、費用もかかります。</p>
+    <p class="small">使える資金：<b>${moneyLabel(funds)}</b></p>
+    ${CAMP_SITES.map((site) => {
+      const { cost, mult } = CAMP_RANKS[site.rank];
+      const ok = funds >= cost;
+      return `<label class="prow" style="${ok ? '' : 'opacity:.5'}"><input type="radio" name="camp" value="${site.id}" ${campChoice === site.id ? 'checked' : ''} ${ok ? '' : 'disabled'}>
+        <div class="grow"><b>${esc(site.name)}</b> <span class="rank rank-${site.rank === 'S' ? 'S' : site.rank === 'A' ? 'A' : site.rank === 'B' ? 'B' : 'C'}">${site.rank}</span>
+        <div class="small muted">${esc(site.note)}（効果×${mult}）</div></div><span class="small">${moneyLabel(cost)}</span></label>`;
+    }).join('')}
+    <button id="os-camp" style="width:100%;margin-top:8px">キャンプを行い、${w.season.year + 1}年の開幕へ</button>`;
+}
+
+/** 年度を締めたあとの記録（表彰・引退・決算） */
+function yearSummary(w: World): string {
+  const off = w.offseason;
+  if (!off) return '';
+  const team = (id: number) => w.teams.find((t) => t.id === id);
+  const awards = ([0, 1] as const).map((lg) => `<h2>${LEAGUE_NAMES[lg]} 表彰</h2><div class="card"><table class="box">
+    ${off.awards.filter((a) => a.league === lg).map((a) => `<tr class="${a.teamId === w.userTeamId ? 'mine' : ''}"><td class="tl small">${esc(a.title)}</td><td class="tl">${esc(a.playerName)} ${teamChip(team(a.teamId))}</td><td class="small">${esc(a.value)}</td></tr>`).join('')}
+  </table></div>`).join('');
+  const mineRetired = off.retired.filter((r) => r.teamId === w.userTeamId);
+  const ledger = (w.finance?.ledger ?? []).filter((x) => x.year === off.year);
+  const net = ledger.reduce((s2, x) => s2 + x.amount, 0);
+  return `${awards}
+    <h2>引退</h2><div class="card small">${mineRetired.length ? mineRetired.map((r) => `<div>${esc(r.name)}（${r.age}歳・${esc(r.note)}）</div>`).join('') : '<p class="muted">自球団の引退選手はいません。</p>'}
+      <p class="muted">リーグ全体で${off.retired.length}人が引退しました。</p></div>
+    ${w.finance ? `<h2>${off.year}年の収支（${moneyLabel(net)}）</h2><div class="card"><table class="box">${ledger.map((x) => `<tr><td class="tl small">${esc(x.label)}</td><td class="${x.amount < 0 ? 'lose' : 'win'}" style="text-align:right;white-space:nowrap">${x.amount >= 0 ? '+' : ''}${moneyLabel(x.amount)}</td></tr>`).join('')}</table>
+      <p class="small">残高 <b>${moneyLabel(w.finance.balance)}</b></p></div>` : ''}`;
+}
+
 /** レギュラーシーズン後の「次の試合」欄 */
 function postseasonPanel(w: World, myRank: number): string {
   const ps = w.season.postseason;
@@ -162,10 +210,9 @@ function postseasonPanel(w: World, myRank: number): string {
   if (ps.finished) {
     const champ = w.teams.find((t) => t.id === ps.championId)!;
     const draftDone = w.draft?.year === w.season.year && w.draft.phase === 'done';
-    return `<p><b>${champ.id === me ? '日本一になりました！' : `${esc(champ.name)}が日本一になりました`}</b></p>
-      ${draftDone
-        ? '<p class="muted small">ドラフト会議が終わりました。次は契約更改と年度終了です（ステップ9で作ります）。</p><button class="sub" id="go-draft" style="width:100%">ドラフトの結果を見る</button>'
-        : `<button id="go-draft" style="width:100%">ドラフト会議へ（補強）</button>`}`;
+    const head = `<p><b>${champ.id === me ? '日本一になりました！' : `${esc(champ.name)}が日本一になりました`}</b></p>`;
+    if (!draftDone) return `${head}<button id="go-draft" style="width:100%">ドラフト会議へ（補強）</button>`;
+    return head + offseasonPanel(w);
   }
   const mine = activeSeries(w).find((x) => x.teams.includes(me));
   const info = mine
@@ -233,6 +280,7 @@ export function renderHome(el: HTMLElement): void {
         <div><div class="hero-big">${st.w}-${st.l}${st.t ? `-${st.t}` : ''}</div><div class="hero-sub">勝率${pct}</div></div>
         <div><div class="hero-big">${sk ? `${sk.count}<small>${sk.kind === 'W' ? '連勝' : '連敗'}</small>` : '-'}</div><div class="hero-sub">二軍 ${rankOfTeam(w, 'farm', me.id)}位 ${farm.w}-${farm.l}</div></div>
       </div>
+      ${w.finance ? `<div class="hero-sub" style="margin-top:8px">資金 ${moneyLabel(w.finance.balance)}</div>` : ''}
       ${last10.length ? `<div class="last10">${last10.slice().reverse().map((g) => `<span class="m-${g.result}">${mark(g.result)}</span>`).join('')}<span class="hero-sub">最近${last10.length}試合 ${last10.filter((g) => g.result === 'W').length}勝${last10.filter((g) => g.result === 'L').length}敗</span></div>` : ''}
     </div>
 
@@ -247,7 +295,7 @@ export function renderHome(el: HTMLElement): void {
       </div>`}
     </div>
 
-    ${w.season.postseason ? renderPostseason(w) : ''}
+    ${w.offseason ? yearSummary(w) : w.season.postseason ? renderPostseason(w) : ''}
 
     ${w.season.dayIndex === 0 && w.quickStart ? `
     <div class="card">
@@ -301,7 +349,24 @@ export function renderHome(el: HTMLElement): void {
   el.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) =>
     b.addEventListener('click', () => run(b.dataset.run === 'end' ? 'end' : Number(b.dataset.run))),
   );
-  el.querySelector('#go-draft')?.addEventListener('click', () => { app.screen = 'reinforce'; app.refresh(); });
+  el.querySelector('#go-draft')?.addEventListener('click', () => { openReinforceTab('draft'); app.screen = 'reinforce'; app.refresh(); });
+  el.querySelector('#go-contract')?.addEventListener('click', () => { openReinforceTab('contract'); app.screen = 'reinforce'; app.refresh(); });
+  el.querySelector('#os-close')?.addEventListener('click', () => {
+    if (!confirm(`${w.season.year}年度を締めますか？（表彰・成長・引退・決算を行います）`)) return;
+    closeYear(w);
+    app.locker = null;
+    app.refresh();
+  });
+  el.querySelectorAll<HTMLInputElement>('input[name=camp]').forEach((r) => r.addEventListener('change', () => { campChoice = r.value; }));
+  el.querySelector('#os-camp')?.addEventListener('click', () => {
+    const site = CAMP_SITES.find((x) => x.id === campChoice)!;
+    if (!confirm(`${site.name}でキャンプを行い、${w.season.year + 1}年のシーズンを始めますか？（費用 ${moneyLabel(CAMP_RANKS[site.rank].cost)}）`)) return;
+    const why = finishCamp(w, campChoice);
+    if (why) return alert(why);
+    app.lastGame = null;
+    app.locker = null;
+    app.refresh();
+  });
   el.querySelector('#ps-start')?.addEventListener('click', () => { startPostseason(w); app.refresh(); });
   el.querySelectorAll<HTMLButtonElement>('[data-ps]').forEach((b) => b.addEventListener('click', () => runPost(b.dataset.ps as 'day' | 'end')));
   el.querySelector('#pick-team')?.addEventListener('change', (e) => {

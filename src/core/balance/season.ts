@@ -4,6 +4,7 @@ import {
 } from '../../config/league';
 import { advanceDays, createWorld } from '../season/advance';
 import type { LeagueConfig, Player } from '../types';
+import type { World } from '../season/types';
 
 export interface TeamSeason {
   teamId: number;
@@ -84,6 +85,11 @@ export function runBalanceSeason(seed: number, counts: readonly [number, number]
   };
   const w = createWorld(seed, config, 2027, -1);
   advanceDays(w, 100000);
+  return seasonMetrics(w);
+}
+
+/** 終わったシーズンの一軍の成績をまとめる（143試合に換算） */
+export function seasonMetrics(w: World): BalanceSeason {
   const target = DEFAULT_GAMES;
   const stats = w.season.stats.first;
   const teamOf = new Map(w.players.map((p) => [p.id, p.teamId]));
@@ -135,4 +141,18 @@ export function runBalanceSeason(seed: number, counts: readonly [number, number]
   let h = 0, ab = 0, er = 0, outs = 0;
   for (const a of tAgg.values()) { h += a.h; ab += a.ab; er += a.er; outs += a.outs; }
   return { teams: teamSeasons, leaders, leagueAvg: h / ab, leagueEra: (er * 27) / outs, players: w.players };
+}
+
+/** 能力の平均（一軍の主力：各球団の野手上位9人・投手上位11人） */
+export function talentLevel(w: World): { bat: number; pitch: number; age: number } {
+  let bat = 0, pitch = 0, nb = 0, np = 0, age = 0, na = 0;
+  for (const t of w.teams) {
+    const ps = w.players.filter((p) => p.teamId === t.id && !p.retired && p.contract === 'roster');
+    const fs = ps.filter((p) => p.mainPos !== 'P').map((p) => (p.bat.contact + p.bat.power + p.bat.speed + p.bat.defense) / 4).sort((a, b) => b - a).slice(0, 9);
+    const pp = ps.filter((p) => p.pitch).map((p) => (p.pitch!.velocity + p.pitch!.control + p.pitch!.breaking + p.pitch!.stamina) / 4).sort((a, b) => b - a).slice(0, 11);
+    bat += fs.reduce((a, b) => a + b, 0); nb += fs.length;
+    pitch += pp.reduce((a, b) => a + b, 0); np += pp.length;
+    for (const p of ps) { age += p.age; na++; }
+  }
+  return { bat: bat / nb, pitch: pitch / np, age: age / na };
 }

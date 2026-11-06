@@ -13,11 +13,11 @@ export const CAREER_MIX: readonly { career: Career; weight: number; age: [number
 
 /** 候補の素材の良さ（能力上限の補正）と、その出やすさ */
 export const PROSPECT_TIERS: readonly { capShift: number; weight: number }[] = [
-  { capShift: 14, weight: 3 }, // 超目玉
-  { capShift: 8, weight: 10 }, // 上位候補
-  { capShift: 3, weight: 25 },
-  { capShift: -2, weight: 35 },
-  { capShift: -8, weight: 27 }, // 育成候補
+  { capShift: 8, weight: 3 }, // 超目玉
+  { capShift: 2, weight: 10 }, // 上位候補
+  { capShift: -3, weight: 25 },
+  { capShift: -8, weight: 35 },
+  { capShift: -14, weight: 27 }, // 育成候補
 ];
 
 /** ポジションの割合（投手が多め） */
