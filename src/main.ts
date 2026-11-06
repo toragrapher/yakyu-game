@@ -1,4 +1,5 @@
 // 開発用の画面（第1段階のステップ1）：選手の生成を確かめる
+import { LEAGUE_NAMES } from './config/league';
 import { generateAiTeams } from './core/generate/team';
 import { ORDER_FIT_LABEL, handLabel, playerTag, salaryLabel } from './core/labels';
 import { NameRegistry } from './core/names';
@@ -54,7 +55,7 @@ function render(): void {
     <div class="teamtabs">${teams.map((t) => `<button class="${t.id === selectedTeam ? '' : 'sub'}" data-team="${t.id}">${esc(t.shortName)}</button>`).join('')}</div>
     <div class="card">
       <div class="name" style="color:${team!.colorMain}">${esc(team!.name)}</div>
-      <div class="muted">${team!.league === 0 ? 'Aリーグ' : 'Bリーグ'}｜本拠地 ${esc(team!.homePref)}｜${esc(team!.stadium.name)}｜支配下年俸総額 ${salaryLabel(payroll)}</div>
+      <div class="muted">${LEAGUE_NAMES[team!.league]}｜本拠地 ${esc(team!.homePref)}｜${esc(team!.stadium.name)}｜支配下年俸総額 ${salaryLabel(payroll)}</div>
     </div>
     <h2>投手（${pitchers.length}人）</h2>
     <div class="card"><ul class="list">${pitchers.map(playerItem).join('')}</ul></div>
