@@ -32,6 +32,33 @@ interface WizardState {
   founding: Founding | null;
   filter: 'all' | 'P' | 'C' | 'IF' | 'OF' | 'rookie' | 'veteran' | 'picked';
   shown: number;
+  sortKey: SortKey;
+  /** true＝高い順（年齢は上の順）、false＝低い順 */
+  desc: boolean;
+}
+
+type SortKey = 'value' | 'now' | 'pot' | 'age' | 'contact' | 'power' | 'speed' | 'defense' | 'velocity' | 'control' | 'breaking' | 'stamina';
+
+const SORTS: [SortKey, string][] = [
+  ['value', 'おすすめ'], ['now', '即（今の力）'], ['pot', '将（将来性）'], ['age', '年齢'],
+  ['contact', '巧打'], ['power', '長打'], ['speed', '走塁'], ['defense', '守備'],
+  ['velocity', '速球'], ['control', '制球'], ['breaking', '変化球'], ['stamina', '体力'],
+];
+const BAT_KEYS: SortKey[] = ['contact', 'power', 'speed', 'defense'];
+const PITCH_KEYS: SortKey[] = ['velocity', 'control', 'breaking', 'stamina'];
+
+/** 並び順の値。対象外（野手の能力で並べたときの投手など）は null */
+function sortValue(p: Player, key: SortKey): number | null {
+  switch (key) {
+    case 'value': return Math.max(overall(p), potentialOverall(p) - 8);
+    case 'now': return overall(p);
+    case 'pot': return potentialOverall(p);
+    case 'age': return p.age;
+    default:
+      if (BAT_KEYS.includes(key)) return p.mainPos === 'P' ? null : p.bat[key as keyof Player['bat']];
+      if (PITCH_KEYS.includes(key)) return p.pitch ? p.pitch[key as keyof NonNullable<Player['pitch']>] : null;
+      return null;
+  }
 }
 
 function initial(): WizardState {
@@ -56,6 +83,8 @@ function initial(): WizardState {
     founding: null,
     filter: 'all',
     shown: 40,
+    sortKey: 'value',
+    desc: true,
   };
 }
 
@@ -211,8 +240,13 @@ function stepPick(): string {
     if (ws.filter === 'veteran') return !isRookieCandidate(f, p);
     return groupOf(p) === ws.filter;
   });
-  const value = (p: Player) => Math.max(overall(p), potentialOverall(p) - 8);
-  list = list.sort((a, b) => value(b) - value(a));
+  // 並べ替え：対象外の選手は、向きに関係なく一番下
+  list = list.sort((a, b) => {
+    const va = sortValue(a, ws.sortKey);
+    const vb = sortValue(b, ws.sortKey);
+    if (va == null || vb == null) return va == null && vb == null ? 0 : va == null ? 1 : -1;
+    return (ws.desc ? vb - va : va - vb) || sortValue(b, 'value')! - sortValue(a, 'value')!;
+  });
   const rookies = f.picks.filter((id) => isRookieCandidate(f, f.players.find((p) => p.id === id)!)).length;
   const counter = f.method === 'expansion'
     ? `指名 ${f.picks.length}/${EXPANSION_PICKS}人（1球団${expansionMaxPerTeam(f)}人まで）`
@@ -221,6 +255,10 @@ function stepPick(): string {
   return `${header(f.method === 'expansion' ? '③ エクスパンションドラフト' : '③ トライアウト＋新人')}
     <div class="card"><b>${counter}</b><p class="muted small">足りないポジションは、最後に自動で埋めます。「即」は今の力、「将」は将来性です。</p>
       <div class="row"><button class="sub" id="pk-auto">おまかせで残りを獲る</button><button id="wz-next">確認へ</button></div></div>
+    <div class="row" style="margin-bottom:8px">
+      <label>並び順 <select id="pk-sort">${SORTS.map(([k, l]) => opt(k, l, ws.sortKey)).join('')}</select></label>
+      <div class="seg" style="margin:0;flex:1"><button class="${ws.desc ? 'on' : ''}" data-desc="1">${ws.sortKey === 'age' ? '年上から' : '高い順'}</button><button class="${ws.desc ? '' : 'on'}" data-desc="0">${ws.sortKey === 'age' ? '若い順' : '低い順'}</button></div>
+    </div>
     <div class="teamtabs" style="margin-bottom:8px">${filters.map(([k, l]) => `<button class="${ws.filter === k ? '' : 'sub'}" data-filter="${k}">${l}</button>`).join('')}</div>
     <div class="card">${list.slice(0, ws.shown).map((p) => candidateRow(f, p)).join('') || '<p class="muted">該当する選手はいません</p>'}
       ${list.length > ws.shown ? `<button class="sub" id="pk-more" style="width:100%;margin-top:8px">もっと見る（残り${list.length - ws.shown}人）</button>` : ''}</div>
@@ -353,6 +391,14 @@ export function renderWizard(el: HTMLElement): void {
     el.querySelectorAll<HTMLButtonElement>('[data-unpick]').forEach((b) => b.addEventListener('click', () => { unpick(f, Number(b.dataset.unpick)); app.refresh(); }));
     el.querySelectorAll<HTMLButtonElement>('[data-filter]').forEach((b) => b.addEventListener('click', () => { ws.filter = b.dataset.filter as WizardState['filter']; ws.shown = 40; app.refresh(); }));
     $('pk-more')?.addEventListener('click', () => { ws.shown += 40; app.refresh(); });
+    $('pk-sort')!.addEventListener('change', (e) => {
+      ws.sortKey = (e.target as HTMLSelectElement).value as SortKey;
+      // 年齢は若い順、それ以外は高い順から
+      ws.desc = ws.sortKey !== 'age';
+      ws.shown = 40;
+      app.refresh();
+    });
+    el.querySelectorAll<HTMLButtonElement>('[data-desc]').forEach((b) => b.addEventListener('click', () => { ws.desc = b.dataset.desc === '1'; ws.shown = 40; app.refresh(); }));
     $('pk-auto')!.addEventListener('click', () => { autoPick(f); app.refresh(); });
     $('wz-next')!.addEventListener('click', () => go(5));
     $('wz-back')!.addEventListener('click', () => go(3));
