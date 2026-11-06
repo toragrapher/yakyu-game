@@ -342,4 +342,5 @@ button.bc-go { display: block; width: 100%; margin-top: 12px; padding: 14px 0; f
 .motif-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; margin-top: 4px; }
 .motif-grid button { padding: 6px 0; min-height: 38px; font-size: 12px; clip-path: none; }
 .motif-grid button.emoji { font-size: 22px; line-height: 1; }
+.motif-grid button.emoji span { filter: grayscale(1) contrast(1.6) brightness(1.2); }
 .motif-grid button.on { background: var(--gold); color: #1a1200; box-shadow: 0 0 8px rgba(255,197,46,.5); }

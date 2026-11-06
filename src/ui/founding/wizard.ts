@@ -176,7 +176,7 @@ function stepTeam(): string {
         <input type="hidden" id="lg-motif" value="${l.emoji ? `e:${l.emoji}` : l.motif}">
         <div class="motif-grid">
           ${(Object.keys(MOTIF_LABEL) as Logo['motif'][]).map((k) => `<button class="sub ${!l.emoji && l.motif === k ? 'on' : ''}" data-motif="${k}">${MOTIF_LABEL[k]}</button>`).join('')}
-          ${LOGO_EMOJI.map((e) => `<button class="sub emoji ${l.emoji === e ? 'on' : ''}" data-motif="e:${e}">${e}</button>`).join('')}
+          ${LOGO_EMOJI.map((e) => `<button class="sub emoji ${l.emoji === e ? 'on' : ''}" data-motif="e:${e}"><span>${e}</span></button>`).join('')}
         </div>
       </div>
       <div class="row" style="margin-top:8px"><label>ロゴの文字 <input id="lg-text" value="${esc(l.text)}" maxlength="3" style="width:4em"></label><span class="muted small">3文字まで</span></div>
