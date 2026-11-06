@@ -17,3 +17,6 @@ export const app = {
   progress: 0,
   refresh: () => {},
 };
+
+/** 開発用の画面を出すか（アドレスの最後に ?dev を付けたときだけ） */
+export const DEV_MODE = new URLSearchParams(location.search).has('dev');

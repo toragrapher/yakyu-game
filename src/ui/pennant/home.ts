@@ -11,7 +11,7 @@ import { fullName } from '../../core/labels';
 import { TIRED_NOTICE } from '../../config/season';
 import { teamSchedule } from '../../core/schedule/schedule';
 import type { LeagueConfig, Player } from '../../core/types';
-import { app } from '../app';
+import { app, DEV_MODE } from '../app';
 import { esc, teamChip } from '../common';
 import { renderGameResult } from '../gameView';
 import { resetWizard } from '../founding/wizard';
@@ -46,17 +46,17 @@ function renderStart(el: HTMLElement): void {
       <p>新規参入球団のGM兼監督として、球団を設立してペナントを戦います。</p>
       <button id="st-found" style="width:100%">新しく球団をつくる</button>
     </div>
-    <div class="card">
+    ${DEV_MODE ? `<div class="card">
       <p class="muted small">開発用：AIが作った球団の1つを自球団にして、すぐ始めます。</p>
       <div class="row"><label>シード番号 <input id="st-seed" type="number" inputmode="numeric" value="${Math.floor(Math.random() * 100000)}" style="width:8em"></label>
       <button class="sub" id="st-go">すぐ始める</button></div>
-    </div>`;
+    </div>` : ''}`;
   el.querySelector('#st-found')!.addEventListener('click', () => {
     resetWizard();
     app.screen = 'found';
     app.refresh();
   });
-  el.querySelector('#st-go')!.addEventListener('click', () => {
+  el.querySelector('#st-go')?.addEventListener('click', () => {
     const seed = Number((el.querySelector('#st-seed') as HTMLInputElement).value) || 1;
     app.world = createWorld(seed, defaultConfig(), 2027, 1, true);
     app.lastGame = null;

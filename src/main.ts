@@ -1,5 +1,5 @@
 // アプリの入口：下のメニューで画面を切り替える
-import { app, type ScreenName } from './ui/app';
+import { app, DEV_MODE, type ScreenName } from './ui/app';
 import { mountDev } from './ui/dev';
 import { renderWizard } from './ui/founding/wizard';
 import { detachDnd } from './ui/dnd';
@@ -17,17 +17,20 @@ root.innerHTML = `<div id="screen"></div><nav class="nav" id="nav"></nav>`;
 const screen = document.getElementById('screen')!;
 const nav = document.getElementById('nav')!;
 
-const MENU: [ScreenName, string, string][] = [
+const ALL_MENU: [ScreenName, string, string][] = [
   ['home', '🏠', 'メイン'],
   ['records', '📊', '成績'],
   ['locker', '📋', 'ロッカー'],
   ['reinforce', '🔍', '補強'],
   ['dev', '🔧', '開発'],
 ];
+// 開発用の画面は、アドレスに ?dev を付けたときだけ出す
+const MENU = ALL_MENU.filter(([k]) => k !== 'dev' || DEV_MODE);
 
 let lastScreen: ScreenName | null = null;
 
 function refresh(): void {
+  if (app.screen === 'dev' && !DEV_MODE) app.screen = 'home';
   const needWorld = app.screen !== 'home' && app.screen !== 'dev' && app.screen !== 'found';
   if (needWorld && !app.world) app.screen = 'home';
   // 球団設立の途中は、下のメニューを隠す
