@@ -1,0 +1,38 @@
+:root {
+  --bg: #f4f5f7;
+  --card: #ffffff;
+  --text: #1b1f24;
+  --muted: #69707a;
+  --line: #e2e5e9;
+  --accent: #0b3d91;
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #111418; --card: #1b1f25; --text: #e8eaed; --muted: #9aa1aa; --line: #2c323a; --accent: #6ea0ff; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); }
+#app { max-width: 600px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 12px) 12px calc(env(safe-area-inset-bottom) + 24px); }
+h1 { font-size: 20px; margin: 4px 0 12px; }
+h2 { font-size: 16px; margin: 16px 0 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input, select, button { font-size: 16px; } /* 16px未満だとiPhoneで入力時に拡大される */
+input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--text); }
+button { padding: 10px 14px; border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 600; min-height: 44px; }
+button.sub { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.muted { color: var(--muted); font-size: 13px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.list li:last-child { border-bottom: 0; }
+.name { font-weight: 600; }
+.abil { display: flex; gap: 10px; margin-top: 4px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.rank { display: inline-block; min-width: 1.4em; text-align: center; font-weight: 700; border-radius: 4px; padding: 0 3px; color: #fff; }
+.rank-S { background: #d4145a; } .rank-A { background: #f15a24; } .rank-B { background: #f7931e; }
+.rank-C { background: #8cc63f; } .rank-D { background: #29abe2; } .rank-E { background: #5b7fa6; }
+.rank-F { background: #8a8f98; } .rank-G { background: #5d6168; }
+.teamtabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.teamtabs button { flex: 0 0 auto; padding: 8px 10px; font-size: 14px; }
