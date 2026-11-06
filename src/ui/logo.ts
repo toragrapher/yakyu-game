@@ -3,6 +3,14 @@ import type { Logo } from '../core/types';
 import { esc } from './common';
 
 export const SHAPE_LABEL: Record<Logo['shape'], string> = { shield: '盾', circle: '円', emblem: 'エンブレム', diamond: 'ひし形' };
+/** 模様に使える絵文字（動物・植物・乗り物など） */
+export const LOGO_EMOJI = [
+  '🦁', '🐯', '🐻', '🐺', '🦊', '🦅', '🦉', '🐉', '🦈', '🐬', '🐎', '🦬', '🐘', '🦏', '🐝',
+  '🌸', '🍁', '🌻', '🌲', '🌵', '🍀', '🌾',
+  '🚀', '✈️', '🚄', '🚢', '🏎️', '⛵',
+  '⚡', '🔥',
+];
+
 export const MOTIF_LABEL: Record<Logo['motif'], string> = { animal: '鳥', star: '星', wave: '波', bat: 'バット', none: 'なし' };
 
 function outline(shape: Logo['shape'], inset: number): string {
@@ -50,14 +58,15 @@ function motif(m: Logo['motif'], color: string, cy: number): string {
 /** ロゴのSVG（size はピクセル） */
 export function logoSvg(logo: Logo, size = 64): string {
   const text = esc(logo.text.slice(0, 3));
-  const hasMotif = logo.motif !== 'none';
+  const emoji = logo.emoji && LOGO_EMOJI.includes(logo.emoji) ? logo.emoji : '';
+  const hasMotif = !!emoji || logo.motif !== 'none';
   const fs = text.length >= 3 ? 18 : text.length === 2 ? 23 : 30;
   const ty = hasMotif ? 76 : 50 + fs * 0.36;
   const tsize = hasMotif ? fs : fs * 1.5;
   return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" role="img" aria-label="ロゴ" style="flex:0 0 auto">
     <path d="${outline(logo.shape, 0)}" fill="${logo.main}"/>
     <path d="${outline(logo.shape, 5)}" fill="none" stroke="${logo.sub}" stroke-width="2.5"/>
-    ${motif(logo.motif, logo.sub, 38)}
+    ${emoji ? (text ? `<text x="50" y="49" text-anchor="middle" font-size="32">${emoji}</text>` : `<text x="50" y="66" text-anchor="middle" font-size="46">${emoji}</text>`) : motif(logo.motif, logo.sub, 38)}
     ${text ? `<text x="50" y="${ty}" text-anchor="middle" font-size="${tsize}" font-weight="800" fill="${logo.sub}" font-family="-apple-system, 'Hiragino Sans', sans-serif">${text}</text>` : ''}
   </svg>`;
 }

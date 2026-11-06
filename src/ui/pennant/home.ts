@@ -58,7 +58,6 @@ function renderStart(el: HTMLElement): void {
       <div class="bc-name" style="margin:8px 0 4px">球団経営シミュレーション</div>
       <div class="bc-s">新規参入球団のGM兼監督として、球団を設立してペナントを戦います。</div>
     </div>
-    <h2>セーブ枠を選ぶ</h2>
     ${saves.map((m, i) => {
       const slot = i + 1;
       const [team, at] = m ? m.label.split('｜') : ['', ''];

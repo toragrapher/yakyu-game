@@ -16,7 +16,7 @@ import { overall, potentialOverall } from '../../core/ratings';
 import type { LeagueConfig, Logo, Player, Stadium } from '../../core/types';
 import { app } from '../app';
 import { abilityLine, esc } from '../common';
-import { logoSvg, MOTIF_LABEL, SHAPE_LABEL } from '../logo';
+import { LOGO_EMOJI, logoSvg, MOTIF_LABEL, SHAPE_LABEL } from '../logo';
 
 interface WizardState {
   step: 1 | 2 | 3 | 4 | 5;
@@ -171,7 +171,13 @@ function stepTeam(): string {
     <div class="card">
       <div class="row">
         <label>形 <select id="lg-shape">${(Object.keys(SHAPE_LABEL) as Logo['shape'][]).map((k) => opt(k, SHAPE_LABEL[k], l.shape)).join('')}</select></label>
-        <label>模様 <select id="lg-motif">${(Object.keys(MOTIF_LABEL) as Logo['motif'][]).map((k) => opt(k, MOTIF_LABEL[k], l.motif)).join('')}</select></label>
+      </div>
+      <div style="margin-top:8px"><span class="small">模様</span>
+        <input type="hidden" id="lg-motif" value="${l.emoji ? `e:${l.emoji}` : l.motif}">
+        <div class="motif-grid">
+          ${(Object.keys(MOTIF_LABEL) as Logo['motif'][]).map((k) => `<button class="sub ${!l.emoji && l.motif === k ? 'on' : ''}" data-motif="${k}">${MOTIF_LABEL[k]}</button>`).join('')}
+          ${LOGO_EMOJI.map((e) => `<button class="sub emoji ${l.emoji === e ? 'on' : ''}" data-motif="e:${e}">${e}</button>`).join('')}
+        </div>
       </div>
       <div class="row" style="margin-top:8px"><label>ロゴの文字 <input id="lg-text" value="${esc(l.text)}" maxlength="3" style="width:4em"></label><span class="muted small">3文字まで</span></div>
       <div class="row" style="margin-top:8px">
@@ -361,7 +367,9 @@ export function renderWizard(el: HTMLElement): void {
         turf: val('st-turf') as Stadium['turf'],
         seaside: checked('st-sea'),
       };
-      ws.logo = { shape: val('lg-shape') as Logo['shape'], motif: val('lg-motif') as Logo['motif'], text: val('lg-text').slice(0, 3), main: val('lg-main'), sub: val('lg-sub') };
+      const mv = val('lg-motif');
+      const emoji = mv.startsWith('e:') ? mv.slice(2) : undefined;
+      ws.logo = { shape: val('lg-shape') as Logo['shape'], motif: emoji ? 'none' : (mv as Logo['motif']), ...(emoji ? { emoji } : {}), text: val('lg-text').slice(0, 3), main: val('lg-main'), sub: val('lg-sub') };
       // 作りかけのメンバーがあれば、新球団の情報だけ書き換える
       if (ws.founding) {
         const u = ws.founding.teams.find((t) => t.isUser)!;
@@ -372,6 +380,11 @@ export function renderWizard(el: HTMLElement): void {
     // 文字の入力中は画面を作り直さない（キーボードが閉じないように）
     el.querySelectorAll('input[type=text], input:not([type])').forEach((x) => x.addEventListener('input', updatePreview));
     el.querySelectorAll('select, input[type=checkbox], input[type=color]').forEach((x) => x.addEventListener('change', () => { read(); app.refresh(); }));
+    el.querySelectorAll<HTMLButtonElement>('[data-motif]').forEach((b) => b.addEventListener('click', () => {
+      ($('lg-motif') as HTMLInputElement).value = b.dataset.motif!;
+      read();
+      app.refresh();
+    }));
     $('tm-nick-pick')!.addEventListener('change', (e) => {
       const v = (e.target as HTMLSelectElement).value;
       if (v) { $<HTMLInputElement>('tm-nick')!.value = v; read(); app.refresh(); }
