@@ -5,7 +5,7 @@ import { currentDate } from '../../core/season/advance';
 import { levelPlayers, rotationOf } from '../../core/season/gameTeam';
 import { lineupProblem } from '../../core/season/lineupCheck';
 import { canDemote, canPromote, demote, promote } from '../../core/season/roster';
-import { avg, era, ipLabel } from '../../core/season/stats';
+import { avg, era, holdPoints, ipLabel, ops } from '../../core/season/stats';
 import { buildGameTeam } from '../../core/sim/lineup';
 import type { LineupPos } from '../../core/sim/types';
 import type { OffenseTactic, PitchingTactic, Player } from '../../core/types';
@@ -21,8 +21,15 @@ const POS_OPTIONS: [LineupPos, string][] = [['C', '捕'], ['1B', '一'], ['2B', 
 function statShort(p: Player): string {
   const s = app.world!.season.stats.first[p.id];
   if (!s) return '';
-  if (p.mainPos === 'P') return s.pitch.g ? `${s.pitch.g}登板 防${era(s.pitch).toFixed(2)} ${ipLabel(s.pitch.outs)}回` : '';
-  return s.bat.pa ? `${rate3(avg(s.bat))} ${s.bat.hr}本 ${s.bat.pa}打席` : '';
+  if (p.mainPos === 'P') {
+    const t = s.pitch;
+    if (!t.g) return '';
+    const base = `${t.g}登板 ${t.w}勝${t.l}敗`;
+    const relief = t.sv || holdPoints(t) ? ` ${t.sv}S ${holdPoints(t)}HP` : '';
+    return `${base}${relief} 防${era(t).toFixed(2)} ${ipLabel(t.outs)}回`;
+  }
+  const b = s.bat;
+  return b.pa ? `${rate3(avg(b))} ${b.hr}本 ${b.rbi}点 OPS${rate3(ops(b))} ${b.pa}打席` : '';
 }
 const rate3 = (v: number) => v.toFixed(3).replace(/^0/, '');
 

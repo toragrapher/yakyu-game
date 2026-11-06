@@ -1,7 +1,7 @@
 // 成績の画面（打撃・投手、一軍・二軍、リーグ・自球団）
 import { LEAGUE_NAMES, QUALIFY_IP_PER_GAME, QUALIFY_PA_PER_GAME } from '../../config/league';
 import { fullName } from '../../core/labels';
-import { avg, era, ipLabel, ops, rate3 } from '../../core/season/stats';
+import { avg, era, holdPoints, ipLabel, ops, rate3 } from '../../core/season/stats';
 import type { BatTotals, LevelKey, PitchTotals } from '../../core/season/types';
 import type { Player } from '../../core/types';
 import { app } from '../app';
@@ -11,12 +11,12 @@ let level: LevelKey = 'first';
 let kind: 'bat' | 'pitch' = 'bat';
 let scope: 'mine' | 0 | 1 = 'mine';
 type BatSort = 'avg' | 'hr' | 'rbi' | 'sb' | 'ops';
-type PitchSort = 'era' | 'w' | 'sv' | 'k' | 'hld';
+type PitchSort = 'era' | 'w' | 'sv' | 'k' | 'hp';
 let sortBat: BatSort = 'avg';
 let sortPitch: PitchSort = 'era';
 
 const BAT_SORTS: [BatSort, string][] = [['avg', '打率'], ['hr', '本塁打'], ['rbi', '打点'], ['sb', '盗塁'], ['ops', 'OPS']];
-const PITCH_SORTS: [PitchSort, string][] = [['era', '防御率'], ['w', '勝利'], ['sv', 'セーブ'], ['hld', 'ホールド'], ['k', '奪三振']];
+const PITCH_SORTS: [PitchSort, string][] = [['era', '防御率'], ['w', '勝利'], ['sv', 'セーブ'], ['hp', 'ホールドポイント'], ['k', '奪三振']];
 
 export function renderStats(el: HTMLElement): void {
   const w = app.world!;
@@ -53,11 +53,11 @@ export function renderStats(el: HTMLElement): void {
     let list = rows.filter((r) => r.pitch.g > 0);
     const qualified = (r: (typeof rows)[number]) => r.pitch.outs / 3 >= played(r.p.teamId!) * QUALIFY_IP_PER_GAME;
     if (scope !== 'mine' && sortPitch === 'era') list = list.filter(qualified);
-    const key = (r: (typeof rows)[number]) => (sortPitch === 'era' ? -era(r.pitch) : r.pitch[sortPitch]);
+    const key = (r: (typeof rows)[number]) => (sortPitch === 'era' ? -era(r.pitch) : sortPitch === 'hp' ? holdPoints(r.pitch) : r.pitch[sortPitch]);
     list.sort((a, b) => key(b) - key(a) || b.pitch.outs - a.pitch.outs);
     if (scope === 'mine') list.sort((a, b) => b.pitch.outs - a.pitch.outs);
-    table = `<table class="box"><tr><th class="tl">投手</th><th>登</th><th>勝</th><th>敗</th><th>S</th><th>H</th><th>防御率</th><th>回</th><th>振</th></tr>
-      ${list.slice(0, 40).map((r) => `<tr class="${r.p.teamId === w.userTeamId && scope !== 'mine' ? 'mine' : ''}"><td class="tl">${scope === 'mine' ? '' : teamChip(teamOf(r.p)) + ' '}${esc(fullName(r.p))}</td><td>${r.pitch.g}</td><td>${r.pitch.w}</td><td>${r.pitch.l}</td><td>${r.pitch.sv}</td><td>${r.pitch.hld}</td><td>${era(r.pitch).toFixed(2)}</td><td>${ipLabel(r.pitch.outs)}</td><td>${r.pitch.k}</td></tr>`).join('')}
+    table = `<table class="box"><tr><th class="tl">投手</th><th>登</th><th>勝</th><th>敗</th><th>S</th><th>H</th><th>HP</th><th>防御率</th><th>回</th><th>振</th></tr>
+      ${list.slice(0, 40).map((r) => `<tr class="${r.p.teamId === w.userTeamId && scope !== 'mine' ? 'mine' : ''}"><td class="tl">${scope === 'mine' ? '' : teamChip(teamOf(r.p)) + ' '}${esc(fullName(r.p))}</td><td>${r.pitch.g}</td><td>${r.pitch.w}</td><td>${r.pitch.l}</td><td>${r.pitch.sv}</td><td>${r.pitch.hld}</td><td>${holdPoints(r.pitch)}</td><td>${era(r.pitch).toFixed(2)}</td><td>${ipLabel(r.pitch.outs)}</td><td>${r.pitch.k}</td></tr>`).join('')}
     </table>`;
   }
 

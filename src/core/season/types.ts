@@ -12,7 +12,10 @@ export interface BatTotals {
 
 /** 投球の通算 */
 export interface PitchTotals {
-  g: number; gs: number; w: number; l: number; sv: number; hld: number; outs: number; bf: number;
+  g: number; gs: number; w: number; l: number; sv: number; hld: number;
+  /** 救援での勝利（ホールドポイントの計算に使う） */
+  rw: number;
+  outs: number; bf: number;
   h: number; hr: number; bb: number; hbp: number; k: number; r: number; er: number; pitches: number;
 }
 

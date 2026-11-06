@@ -3,7 +3,7 @@ import type { BatLine, PitchLine } from '../sim/types';
 import type { BatTotals, PitchTotals, PlayerSeason } from './types';
 
 export const emptyBat = (): BatTotals => ({ g: 0, pa: 0, ab: 0, h: 0, d: 0, t: 0, hr: 0, rbi: 0, r: 0, bb: 0, hbp: 0, k: 0, sb: 0, cs: 0, sh: 0, sf: 0, gidp: 0 });
-export const emptyPitch = (): PitchTotals => ({ g: 0, gs: 0, w: 0, l: 0, sv: 0, hld: 0, outs: 0, bf: 0, h: 0, hr: 0, bb: 0, hbp: 0, k: 0, r: 0, er: 0, pitches: 0 });
+export const emptyPitch = (): PitchTotals => ({ g: 0, gs: 0, w: 0, l: 0, sv: 0, hld: 0, rw: 0, outs: 0, bf: 0, h: 0, hr: 0, bb: 0, hbp: 0, k: 0, r: 0, er: 0, pitches: 0 });
 export const emptySeason = (): PlayerSeason => ({ bat: emptyBat(), pitch: emptyPitch() });
 
 export function addBat(t: BatTotals, b: BatLine): void {
@@ -15,7 +15,10 @@ export function addBat(t: BatTotals, b: BatLine): void {
 export function addPitch(t: PitchTotals, p: PitchLine): void {
   t.g++;
   if (p.starter) t.gs++;
-  if (p.decision === 'W') t.w++;
+  if (p.decision === 'W') {
+    t.w++;
+    if (!p.starter) t.rw++;
+  }
   if (p.decision === 'L') t.l++;
   if (p.decision === 'S') t.sv++;
   if (p.decision === 'H') t.hld++;
@@ -31,6 +34,8 @@ export const obp = (b: BatTotals) => {
 export const slg = (b: BatTotals) => (b.ab > 0 ? (b.h + b.d + 2 * b.t + 3 * b.hr) / b.ab : 0);
 export const ops = (b: BatTotals) => obp(b) + slg(b);
 export const era = (p: PitchTotals) => (p.outs > 0 ? (p.er * 27) / p.outs : 0);
+/** ホールドポイント（ホールド＋救援勝利） */
+export const holdPoints = (p: PitchTotals) => p.hld + (p.rw ?? 0);
 export const whip = (p: PitchTotals) => (p.outs > 0 ? ((p.h + p.bb) * 3) / p.outs : 0);
 
 /** 投球回の表示（例：「123 1/3」） */
