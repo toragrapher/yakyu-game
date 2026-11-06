@@ -77,6 +77,7 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
     usedNames: names.toArray(),
     nextPlayerId: Math.max(...players.map((p) => p.id)) + 1,
     userTeamId,
+    quickStart: true,
     season,
   };
 }

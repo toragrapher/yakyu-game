@@ -102,8 +102,11 @@ export function generateAiTeams(rng: Rng, names: NameRegistry, counts: [number, 
 
 const clampAbility = (v: number) => Math.max(ABILITY_MIN, Math.min(ABILITY_MAX, Math.round(v)));
 
-/** 一軍の平均能力（野手・投手別）をリーグ平均に近づけ、AI球団どうしの戦力差を縮める */
-export function equalizeTeams(teams: Team[], players: Player[], parity: number): void {
+/**
+ * 一軍の平均能力（野手・投手別）をリーグ平均に近づけ、球団どうしの戦力差を縮める。
+ * onlyTeamId を指定すると、その球団だけを「ほかの球団の平均」に近づける。
+ */
+export function equalizeTeams(teams: Team[], players: Player[], parity: number, onlyTeamId?: number): void {
   if (parity <= 0) return;
   const strength = new Map<number, { bat: number; pit: number }>();
   for (const t of teams) {
@@ -113,10 +116,11 @@ export function equalizeTeams(teams: Team[], players: Player[], parity: number):
     const pit = ps.reduce((s, p) => s + pitcherOverall(p.pitch!, p.role!), 0) / ps.length;
     strength.set(t.id, { bat, pit });
   }
-  const vals = [...strength.values()];
+  const vals = [...strength.entries()].filter(([id]) => onlyTeamId == null || id !== onlyTeamId).map(([, v]) => v);
   const meanBat = vals.reduce((s, v) => s + v.bat, 0) / vals.length;
   const meanPit = vals.reduce((s, v) => s + v.pit, 0) / vals.length;
   for (const p of players) {
+    if (onlyTeamId != null && p.teamId !== onlyTeamId) continue;
     const st = p.teamId != null ? strength.get(p.teamId) : undefined;
     if (!st) continue;
     if (p.pitch && p.pitchCap) {

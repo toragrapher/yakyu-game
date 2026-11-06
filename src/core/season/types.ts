@@ -97,5 +97,7 @@ export interface World {
   usedNames: string[];
   nextPlayerId: number;
   userTeamId: number;
+  /** 開発用の「すぐ始める」で作った世界（自球団を選び直せる） */
+  quickStart?: boolean;
   season: SeasonState;
 }

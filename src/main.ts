@@ -1,6 +1,7 @@
 // アプリの入口：下のメニューで画面を切り替える
 import { app, type ScreenName } from './ui/app';
 import { mountDev } from './ui/dev';
+import { renderWizard } from './ui/founding/wizard';
 import { renderHome } from './ui/pennant/home';
 import { renderManage } from './ui/pennant/manage';
 import { renderStandings } from './ui/pennant/standings';
@@ -23,8 +24,10 @@ const MENU: [ScreenName, string, string][] = [
 let lastScreen: ScreenName | null = null;
 
 function refresh(): void {
-  const needWorld = app.screen !== 'home' && app.screen !== 'dev';
+  const needWorld = app.screen !== 'home' && app.screen !== 'dev' && app.screen !== 'found';
   if (needWorld && !app.world) app.screen = 'home';
+  // 球団設立の途中は、下のメニューを隠す
+  nav.style.display = app.screen === 'found' ? 'none' : '';
   nav.innerHTML = MENU.map(([k, icon, label]) => `<button class="${app.screen === k ? 'on' : ''}" data-nav="${k}" ${app.busy && k !== app.screen ? 'disabled' : ''}>${icon}<br>${label}</button>`).join('');
   nav.querySelectorAll<HTMLButtonElement>('[data-nav]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -40,6 +43,7 @@ function refresh(): void {
   else if (app.screen === 'standings') renderStandings(screen);
   else if (app.screen === 'stats') renderStats(screen);
   else if (app.screen === 'manage') renderManage(screen);
+  else if (app.screen === 'found') renderWizard(screen);
   else mountDev(screen);
   window.scrollTo(0, changed ? 0 : y);
 }

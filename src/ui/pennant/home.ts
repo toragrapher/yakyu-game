@@ -8,6 +8,8 @@ import type { LeagueConfig } from '../../core/types';
 import { app } from '../app';
 import { esc, teamChip } from '../common';
 import { renderGameResult } from '../gameView';
+import { resetWizard } from '../founding/wizard';
+import { logoSvg } from '../logo';
 
 function defaultConfig(): LeagueConfig {
   return {
@@ -21,12 +23,21 @@ function defaultConfig(): LeagueConfig {
 
 function renderStart(el: HTMLElement): void {
   el.innerHTML = `
-    <h1>ペナント（仮）</h1>
+    <h1>球団経営シミュレーション</h1>
     <div class="card">
-      <p>球団設立の画面はステップ6で作ります。それまでは、AIが作った球団の1つを自球団としてシーズンを遊べます。</p>
-      <div class="row"><label>シード番号 <input id="st-seed" type="number" inputmode="numeric" value="${Math.floor(Math.random() * 100000)}" style="width:8em"></label></div>
-      <div class="row" style="margin-top:8px"><button id="st-go">シーズンを始める</button></div>
+      <p>新規参入球団のGM兼監督として、球団を設立してペナントを戦います。</p>
+      <button id="st-found" style="width:100%">新しく球団をつくる</button>
+    </div>
+    <div class="card">
+      <p class="muted small">開発用：AIが作った球団の1つを自球団にして、すぐ始めます。</p>
+      <div class="row"><label>シード番号 <input id="st-seed" type="number" inputmode="numeric" value="${Math.floor(Math.random() * 100000)}" style="width:8em"></label>
+      <button class="sub" id="st-go">すぐ始める</button></div>
     </div>`;
+  el.querySelector('#st-found')!.addEventListener('click', () => {
+    resetWizard();
+    app.screen = 'found';
+    app.refresh();
+  });
   el.querySelector('#st-go')!.addEventListener('click', () => {
     const seed = Number((el.querySelector('#st-seed') as HTMLInputElement).value) || 1;
     app.world = createWorld(seed, defaultConfig(), 2027, 1);
@@ -81,9 +92,10 @@ export function renderHome(el: HTMLElement): void {
   const logs = w.season.recentGames.filter((g) => g.level === 'first').slice(0, 10);
 
   el.innerHTML = `
-    <div class="card">
+    <div class="card" style="border-left:6px solid ${me.colorMain}">
+      <div class="row" style="gap:10px">${logoSvg(me.logo, 48)}<div>
       <div class="muted">${w.season.year}年 ${w.season.finished ? 'レギュラーシーズン終了' : dateLabel(date)}</div>
-      <div class="big" style="color:${me.colorMain}">${esc(me.name)}</div>
+      <div class="big" style="color:${me.colorMain}">${esc(me.name)}</div></div></div>
       <div>${LEAGUE_NAMES[me.league]} <b>${rankOfTeam(w, 'first', me.id)}位</b>　${st.w}勝${st.l}敗${st.t}分</div>
       <div class="muted small">二軍 ${rankOfTeam(w, 'farm', me.id)}位 ${farm.w}勝${farm.l}敗${farm.t}分</div>
       ${next && opp ? `<p>次の試合：${dateLabel(next.date)} ${next.home ? 'vs' : '@'} ${teamChip(opp)} ${esc(opp.name)}${next.interleague ? '（交流戦）' : ''}</p>` : ''}
@@ -95,7 +107,7 @@ export function renderHome(el: HTMLElement): void {
         <button data-run="end" ${app.busy ? 'disabled' : ''}>シーズン終了まで</button>
       </div>`}
     </div>
-    ${w.season.dayIndex === 0 ? `
+    ${w.season.dayIndex === 0 && w.quickStart ? `
     <div class="card">
       <div class="row"><label>自球団（仮） <select id="pick-team">${w.teams.map((t) => `<option value="${t.id}" ${t.id === w.userTeamId ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label></div>
       <p class="muted small">開幕前だけ変えられます。</p>
