@@ -4,7 +4,9 @@ import { ROSTER_LIMIT } from '../config/league';
 import { availableFunds, payroll } from '../core/finance';
 import { fullName, POS_LABEL, ROLE_LABEL } from '../core/labels';
 import { minOffer } from '../core/offseason/contract';
-import { finishContracts, finishRoster, makeOffer, promoteIkusei, releasePlayer, userRosterCount } from '../core/offseason/offseason';
+import { demoteToIkusei, finishContracts, finishRoster, makeOffer, promoteIkusei, releasePlayer, userRosterCount } from '../core/offseason/offseason';
+import { FAN_PENALTY, SEATS, type SeatKey } from '../config/gate';
+import { canChangePrices, defaultPrices, fansOf } from '../core/gate';
 import { overall } from '../core/ratings';
 import { avg, era, holdPoints, ops, rate3 } from '../core/season/stats';
 import type { World } from '../core/season/types';
@@ -30,6 +32,30 @@ function seasonLine(w: World, p: Player): string {
 
 const posOf = (p: Player) => (p.mainPos === 'P' ? ROLE_LABEL[p.role!] : POS_LABEL[p.mainPos]);
 
+/** 今年のホームゲームの合計と、チケットの値段の設定 */
+function gateSection(w: World): string {
+  const g = w.season.gate?.[w.userTeamId];
+  const prices = w.ticketPrices ?? defaultPrices();
+  const editable = canChangePrices(w);
+  const fans = fansOf(w, w.userTeamId);
+  return `
+    <h2>ファンと観客（${w.season.year}年）</h2>
+    <div class="card small">
+      <div>ファン：コア層 <b>${fans.core.toLocaleString()}人</b>・ライト層 <b>${fans.light.toLocaleString()}人</b></div>
+      ${g ? `<div>ホームゲーム ${g.games}試合・平均観客 <b>${Math.round(g.attendance / g.games).toLocaleString()}人</b></div>
+      <div>入場料 ${moneyLabel(g.ticket)}・グッズ飲食 ${moneyLabel(g.goods)}・試合運営 −${moneyLabel(g.cost)}（純損益 ${moneyLabel(g.ticket + g.goods - g.cost)}）</div>
+      <table class="box" style="margin-top:6px"><tr><th class="tl">席種</th><th>座席数</th><th>平均の入り</th></tr>
+      ${SEATS.map((x) => `<tr><td class="tl">${x.name}</td><td>${x.capacity.toLocaleString()}</td><td>${Math.round(g.seats[x.key] / g.games).toLocaleString()}（${Math.round((g.seats[x.key] / g.games / x.capacity) * 100)}%）</td></tr>`).join('')}</table>` : '<div class="muted">まだホームゲームがありません。</div>'}
+    </div>
+    <h2>チケットの値段</h2>
+    <div class="card small">
+      <p class="muted">値段を変えられるのは<b>年に1回、シーズンが始まる前だけ</b>です。値上げすると売上は増えますが、ライト層が来なくなり、数年後のコア層とグッズ収入が減ることがあります。</p>
+      <table class="box"><tr><th class="tl">席種</th><th>値段（円）</th></tr>
+      ${SEATS.map((x) => `<tr><td class="tl">${x.name}</td><td>${editable ? `<input type="number" inputmode="numeric" data-price="${x.key}" value="${prices[x.key]}" step="100" min="500" style="width:6.5em">` : `${prices[x.key].toLocaleString()}`}</td></tr>`).join('')}</table>
+      ${editable ? '<button id="price-save" style="margin-top:6px">この値段に決める</button>' : '<p class="muted">シーズン中なので変えられません。</p>'}
+    </div>`;
+}
+
 export function renderMoneyTab(w: World): string {
   const f = w.finance;
   if (!f) return '<div class="card"><p class="muted">お金の記録がありません。</p></div>';
@@ -41,6 +67,7 @@ export function renderMoneyTab(w: World): string {
       <div class="row small" style="justify-content:space-between"><span>使える資金（年俸と運営費の見込みを引いた額）</span><b>${moneyLabel(availableFunds(w))}</b></div>
       <p class="muted small">年俸と運営費は年度を締めるときに払います。ドラフトの契約金とキャンプの費用は、そのときに払います。入場料などの収入は第2段階で追加します。</p>
     </div>
+    ${gateSection(w)}
     ${years.map((y) => {
       const items = f.ledger.filter((x) => x.year === y);
       const sum = items.reduce((s, x) => s + x.amount, 0);
@@ -92,13 +119,15 @@ export function renderContractTab(w: World): string {
     const cnt = userRosterCount(w);
     const draftees = new Set((w.draft?.picks ?? []).filter((x) => x.teamId === w.userTeamId).map((x) => x.playerId));
     const row = (p: Player) => `<div class="prow"><div class="grow"><b>${esc(fullName(p))}</b>${draftees.has(p.id) ? ' <span class="chip" style="background:var(--line)">新人</span>' : ''} <span class="muted small">${posOf(p)} ${p.age}歳 総合${Math.round(overall(p))} 年俸${moneyLabel(p.salary)}</span><div class="small muted">${seasonLine(w, p)}</div></div>
-      ${p.contract === 'ikusei' ? `<button class="sub" data-promote="${p.id}">支配下へ</button>` : ''}
+      ${p.contract === 'ikusei' ? `<button class="sub" data-promote="${p.id}">支配下へ</button>` : `<button class="sub" data-ikusei="${p.id}">育成へ</button>`}
       <button class="sub" data-release="${p.id}">自由契約</button></div>`;
     const sorted = (ps: Player[]) => ps.slice().sort((a, b) => overall(a) - overall(b));
     return `
       <div class="card">
         <p><b>戦力の整理</b>　支配下 <b class="${cnt.roster > ROSTER_LIMIT ? 'lose' : ''}">${cnt.roster}</b>/${ROSTER_LIMIT}人・育成 ${cnt.ikusei}人</p>
         <p class="muted small">支配下を${ROSTER_LIMIT}人以内にすると、次（キャンプ）へ進めます。自由契約にした選手は退団します。総合の低い順に並んでいます。</p>
+        <p class="muted small">選手の扱いにファンは敏感です。1年に${FAN_PENALTY.freeReleases}人を超える自由契約、在籍の長い選手や愛着の強い選手の自由契約、若手の育成落ちは、コア層のファンが離れる原因になります。</p>
+        ${w.offseason?.fanLoss?.length ? `<p class="small lose">離れたコア層：${w.offseason.fanLoss.reduce((s2, x) => s2 + x.lost, 0).toLocaleString()}人</p>` : ''}
         <button id="rs-done" ${cnt.roster > ROSTER_LIMIT ? 'disabled' : ''}>戦力の整理を終える</button>
       </div>
       <h2>支配下</h2><div class="card">${sorted(mine.filter((p) => p.contract === 'roster')).map(row).join('')}</div>
@@ -158,12 +187,35 @@ export function bindContractTab(el: HTMLElement, w: World): void {
     if (why) alert(why);
     app.refresh();
   });
+  on('[data-ikusei]', 'click', (b) => {
+    const p = w.players.find((x) => x.id === Number(b.dataset.ikusei))!;
+    if (!confirm(`${fullName(p)}を育成契約に切り替えますか？（プロ年数の浅い選手ほど、ファンが離れます）`)) return;
+    const why = demoteToIkusei(w, p.id);
+    if (why) alert(why);
+    app.refresh();
+  });
   on('#rs-done', 'click', () => {
     const why = finishRoster(w);
     if (why) alert(why);
     else {
       app.screen = 'home';
     }
+    app.refresh();
+  });
+}
+
+export function bindMoneyTab(el: HTMLElement, w: World): void {
+  el.querySelector('#price-save')?.addEventListener('click', () => {
+    if (!canChangePrices(w)) return alert('シーズン中は値段を変えられません');
+    const next = { ...(w.ticketPrices ?? defaultPrices()) };
+    for (const x of el.querySelectorAll<HTMLInputElement>('[data-price]')) {
+      const v = Math.round(Number(x.value) / 100) * 100;
+      if (!Number.isFinite(v) || v < 500) return alert('値段は500円以上にしてください');
+      next[x.dataset.price as SeatKey] = v;
+    }
+    if (!confirm('この値段に決めますか？（シーズンが始まると、その年は変えられません）')) return;
+    w.ticketPrices = next;
+    alert('チケットの値段を決めました');
     app.refresh();
   });
 }

@@ -94,8 +94,10 @@ export interface GameResult {
   save: number | null;
   weather: Weather;
   dh: boolean;
-  /** 勝因・敗因 */
-  summary: string[];
+  /** 勝ったチーム自身の勝因 */
+  winReasons: string[];
+  /** 負けたチーム自身の敗因 */
+  loseReasons: string[];
 }
 
 export interface GameOptions {

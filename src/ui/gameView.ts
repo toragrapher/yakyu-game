@@ -1,4 +1,5 @@
 // 1試合の結果の表示
+import { summaryFor } from '../core/sim/summary';
 import { weatherLabel } from '../core/sim/weather';
 import type { GameResult, GameTeam, LineupPos } from '../core/sim/types';
 import type { Player } from '../core/types';
@@ -11,7 +12,8 @@ function allPlayers(gt: GameTeam): Player[] {
   return [...gt.lineup.map((s) => s.player), ...gt.bench, gt.starter, ...gt.setup, ...(gt.closer ? [gt.closer] : []), ...gt.bullpen];
 }
 
-export function renderGameResult(r: GameResult, away: GameTeam, home: GameTeam): string {
+/** userTeamId を渡すと、その球団から見た勝因（勝ち）・敗因（負け）だけを出す */
+export function renderGameResult(r: GameResult, away: GameTeam, home: GameTeam, userTeamId: number | null = null): string {
   const gts = [away, home];
   const byId = new Map<number, Player>();
   for (const gt of gts) for (const p of allPlayers(gt)) byId.set(p.id, p);
@@ -50,7 +52,7 @@ export function renderGameResult(r: GameResult, away: GameTeam, home: GameTeam):
       <div class="scroll"><table class="line"><tr><th></th>${head}<th>計</th><th>安</th><th>失</th></tr>${row(0)}${row(1)}</table></div>
       <p>${decisions}${r.tie ? '引き分け' : ''}</p>
       <p class="muted">${esc(weatherLabel(r.weather))}｜${esc(home.team.stadium.name)}｜${r.dh ? 'DHあり' : 'DHなし'}</p>
-      ${r.summary.map((s) => `<p>${esc(s)}</p>`).join('')}
+      ${summaryFor(r, userTeamId).map((s) => `<p>${esc(s)}</p>`).join('')}
     </div>
     ${([0, 1] as const).map((s) => `<h2>${esc(gts[s].team.name)}</h2><div class="card scroll">${batTable(s)}${pitTable(s)}</div>`).join('')}
   `;

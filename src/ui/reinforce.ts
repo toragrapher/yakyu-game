@@ -10,7 +10,7 @@ import { rankOf } from '../core/ratings';
 import type { DraftState } from '../core/season/types';
 import type { Player } from '../core/types';
 import { app } from './app';
-import { bindContractTab, renderContractTab, renderMoneyTab } from './contracts';
+import { bindContractTab, bindMoneyTab, renderContractTab, renderMoneyTab } from './contracts';
 import { availableFunds } from '../core/finance';
 import { moneyLabel } from './money';
 import { esc, teamChip } from './common';
@@ -73,6 +73,7 @@ export function renderReinforce(el: HTMLElement): void {
   if (tab === 'money') {
     el.innerHTML = tabs + renderMoneyTab(w);
     bindTabs();
+    bindMoneyTab(el, w);
     return;
   }
   if (tab !== 'draft') {

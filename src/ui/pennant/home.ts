@@ -6,7 +6,7 @@ import { levelPlayers } from '../../core/season/gameTeam';
 import { rankOfTeam, standingsTable } from '../../core/season/standings';
 import { era } from '../../core/season/stats';
 import { firstTeamLogs, probableStarter, streak, teamLeaders } from '../../core/season/teamSummary';
-import type { World } from '../../core/season/types';
+import type { GateResult, World } from '../../core/season/types';
 import { fullName } from '../../core/labels';
 import { TIRED_NOTICE } from '../../config/season';
 import { teamSchedule } from '../../core/schedule/schedule';
@@ -19,6 +19,7 @@ import { logoSvg } from '../logo';
 import { activeSeries, advancePostseasonDay, startPostseason } from '../../core/season/postseason';
 import { renderPostseason } from './postseasonView';
 import { CAMP_RANKS, CAMP_SITES } from '../../config/camp';
+import { SEATS } from '../../config/gate';
 import { availableFunds } from '../../core/finance';
 import { closeYear, finishCamp } from '../../core/offseason/offseason';
 import { moneyLabel } from '../money';
@@ -155,6 +156,17 @@ function runPost(mode: 'day' | 'end'): void {
   tick();
 }
 
+/** ホームゲームの観客と収支 */
+function gateBox(g: GateResult): string {
+  const seats = SEATS.map((x) => `${x.name.replace('席', '')} ${g.seats[x.key].toLocaleString()}${g.soldOut.includes(x.key) ? '（満員）' : ''}`).join('・');
+  return `<div class="small" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px">
+    <div>観客 <b>${g.attendance.toLocaleString()}人</b></div>
+    <div class="muted">${seats}</div>
+    <div>入場料 +${moneyLabel(g.ticket)}　グッズ・飲食 +${moneyLabel(g.goods)}　試合運営 −${moneyLabel(g.cost)}</div>
+    <div>この試合の純損益 <b class="${g.net >= 0 ? 'win' : 'lose'}">${g.net >= 0 ? '+' : ''}${moneyLabel(g.net)}</b></div>
+  </div>`;
+}
+
 /** キャンプ地の選択（画面を描き直しても残す） */
 let campChoice: string = CAMP_SITES.find((x) => x.rank === 'B')!.id;
 
@@ -177,6 +189,7 @@ function offseasonPanel(w: World): string {
         <div class="grow"><b>${esc(site.name)}</b> <span class="rank rank-${site.rank === 'S' ? 'S' : site.rank === 'A' ? 'A' : site.rank === 'B' ? 'B' : 'C'}">${site.rank}</span>
         <div class="small muted">${esc(site.note)}（効果×${mult}）</div></div><span class="small">${moneyLabel(cost)}</span></label>`;
     }).join('')}
+    <p class="muted small">チケットの値段は、開幕前の今だけ「補強」の「お金」で変えられます。</p>
     <button id="os-camp" style="width:100%;margin-top:8px">キャンプを行い、${w.season.year + 1}年の開幕へ</button>`;
 }
 
@@ -192,6 +205,7 @@ function yearSummary(w: World): string {
   const ledger = (w.finance?.ledger ?? []).filter((x) => x.year === off.year);
   const net = ledger.reduce((s2, x) => s2 + x.amount, 0);
   return `${awards}
+    ${off.fanLoss?.length ? `<h2>選手の扱いで離れたファン</h2><div class="card small">${off.fanLoss.map((x) => `<div>${esc(x.text)}：コア層 <span class="lose">−${x.lost.toLocaleString()}人</span></div>`).join('')}</div>` : ''}
     <h2>引退</h2><div class="card small">${mineRetired.length ? mineRetired.map((r) => `<div>${esc(r.name)}（${r.age}歳・${esc(r.note)}）</div>`).join('') : '<p class="muted">自球団の引退選手はいません。</p>'}
       <p class="muted">リーグ全体で${off.retired.length}人が引退しました。</p></div>
     ${w.finance ? `<h2>${off.year}年の収支（${moneyLabel(net)}）</h2><div class="card"><table class="box">${ledger.map((x) => `<tr><td class="tl small">${esc(x.label)}</td><td class="${x.amount < 0 ? 'lose' : 'win'}" style="text-align:right;white-space:nowrap">${x.amount >= 0 ? '+' : ''}${moneyLabel(x.amount)}</td></tr>`).join('')}</table>
@@ -280,7 +294,7 @@ export function renderHome(el: HTMLElement): void {
         <div><div class="hero-big">${st.w}-${st.l}${st.t ? `-${st.t}` : ''}</div><div class="hero-sub">勝率${pct}</div></div>
         <div><div class="hero-big">${sk ? `${sk.count}<small>${sk.kind === 'W' ? '連勝' : '連敗'}</small>` : '-'}</div><div class="hero-sub">二軍 ${rankOfTeam(w, 'farm', me.id)}位 ${farm.w}-${farm.l}</div></div>
       </div>
-      ${w.finance ? `<div class="hero-sub" style="margin-top:8px">資金 ${moneyLabel(w.finance.balance)}</div>` : ''}
+      ${w.finance ? `<div class="hero-sub" style="margin-top:8px">資金 ${moneyLabel(w.finance.balance)}${w.fans?.[me.id] ? `｜ファン コア${(w.fans[me.id].core / 10000).toFixed(1)}万人・ライト${(w.fans[me.id].light / 10000).toFixed(1)}万人` : ''}</div>` : ''}
       ${last10.length ? `<div class="last10">${last10.slice().reverse().map((g) => `<span class="m-${g.result}">${mark(g.result)}</span>`).join('')}<span class="hero-sub">最近${last10.length}試合 ${last10.filter((g) => g.result === 'W').length}勝${last10.filter((g) => g.result === 'L').length}敗</span></div>` : ''}
     </div>
 
@@ -303,7 +317,7 @@ export function renderHome(el: HTMLElement): void {
       <p class="muted small">開幕前だけ変えられます。</p>
     </div>` : ''}
 
-    ${w.season.postseason && lg?.label ? `<h2>直近の試合（${esc(lg.label.replace(/^.+リーグ /, ''))}）</h2>${renderGameResult(lg.result, lg.away, lg.home)}` : ''}
+    ${w.season.postseason && lg?.label ? `<h2>直近の試合（${esc(lg.label.replace(/^.+リーグ /, ''))}）</h2>${renderGameResult(lg.result, lg.away, lg.home, me.id)}` : ''}
 
     ${lastLog && !w.season.postseason ? `
     <h2>直近の試合</h2>
@@ -315,7 +329,9 @@ export function renderHome(el: HTMLElement): void {
       </div>
       <p class="small">${[lastLog.win ? `勝 ${esc(lastLog.win)}` : '', lastLog.loss ? `負 ${esc(lastLog.loss)}` : '', lastLog.save ? `S ${esc(lastLog.save)}` : ''].filter(Boolean).join('　')}</p>
       ${lastLog.summary.map((t) => `<p class="small">${esc(t)}</p>`).join('')}
-      ${lg && lg.result.awayId + lg.result.homeId === me.id + lastLog.opponentId ? `<details><summary class="small">スコアと成績を見る</summary>${renderGameResult(lg.result, lg.away, lg.home)}</details>` : ''}
+      ${lastLog.fanDelta != null ? `<p class="small">ファン ${lastLog.fanDelta >= 0 ? '<span class="win">+' : '<span class="lose">'}${lastLog.fanDelta.toLocaleString()}人</span></p>` : ''}
+      ${lastLog.gate ? gateBox(lastLog.gate) : ''}
+      ${lg && lg.result.awayId + lg.result.homeId === me.id + lastLog.opponentId ? `<details><summary class="small">スコアと成績を見る</summary>${renderGameResult(lg.result, lg.away, lg.home, me.id)}</details>` : ''}
     </div>` : ''}
 
     <h2>${LEAGUE_NAMES[me.league]}</h2>

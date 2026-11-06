@@ -7,9 +7,10 @@ import {
 import { fullName } from '../labels';
 import { Rng } from '../rng';
 import { simulateGame } from '../sim/game';
+import { summaryFor } from '../sim/summary';
 import type { GameResult, GameTeam } from '../sim/types';
 import type { Player } from '../types';
-import { applyGameLoad, passDays } from './advance';
+import { afterFirstTeamGame, applyGameLoad, passDays } from './advance';
 import { addDays, daysBetween, monthOf } from './dates';
 import { makeGameTeam } from './gameTeam';
 import { standingsTable, winPct } from './standings';
@@ -154,10 +155,11 @@ export function advancePostseasonDay(w: World): PostDayOutcome | null {
     if (!ga || !gh) continue;
     const r = simulateGame(rng, ga, gh, { dh, month: monthOf(date), night: true });
     applyGameLoad(w, r, date, players);
+    afterFirstTeamGame(w, r, date, 'ポストシーズン ');
     const winnerId = r.tie ? null : r.score[1] > r.score[0] ? home.id : away.id;
     if (winnerId != null) sr.wins[sr.teams.indexOf(winnerId)]++;
     const nm = (id: number | null) => (id == null ? null : players.get(id) ? fullName(players.get(id)!) : null);
-    sr.games.push({ date, awayId: away.id, homeId: home.id, score: r.score, winnerId, win: nm(r.win), loss: nm(r.loss), save: nm(r.save), summary: r.summary });
+    sr.games.push({ date, awayId: away.id, homeId: home.id, score: r.score, winnerId, win: nm(r.win), loss: nm(r.loss), save: nm(r.save), summary: summaryFor(r, w.userTeamId) });
     if (away.id === w.userTeamId || home.id === w.userTeamId) userGame = { result: r, away: ga, home: gh, seriesName: sr.name };
     settle(sr);
     if (sr.winnerId != null) onSeriesEnd(w, sr, date);

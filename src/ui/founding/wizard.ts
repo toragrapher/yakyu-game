@@ -169,6 +169,19 @@ function stepTeam(): string {
   return `${header('② 球団')}
     <div id="wz-preview">${preview()}</div>
     <div class="card">
+      <div class="row">
+        <label>形 <select id="lg-shape">${(Object.keys(SHAPE_LABEL) as Logo['shape'][]).map((k) => opt(k, SHAPE_LABEL[k], l.shape)).join('')}</select></label>
+        <label>模様 <select id="lg-motif">${(Object.keys(MOTIF_LABEL) as Logo['motif'][]).map((k) => opt(k, MOTIF_LABEL[k], l.motif)).join('')}</select></label>
+      </div>
+      <div class="row" style="margin-top:8px"><label>ロゴの文字 <input id="lg-text" value="${esc(l.text)}" maxlength="3" style="width:4em"></label><span class="muted small">3文字まで</span></div>
+      <div class="row" style="margin-top:8px">
+        <label>メイン <input type="color" id="lg-main" value="${l.main}"></label>
+        <label>サブ <input type="color" id="lg-sub" value="${l.sub}"></label>
+      </div>
+      <div class="row" style="margin-top:8px">${COLOR_CANDIDATES.map(([m, s2], i) => `<button class="sub" data-color="${i}" style="min-height:32px;padding:2px;border-color:${m}"><span style="display:inline-block;width:18px;height:18px;background:${m};border-radius:4px"></span><span style="display:inline-block;width:10px;height:18px;background:${s2};border-radius:3px"></span></button>`).join('')}</div>
+      <p class="muted small">メインとサブの色は、チームカラーとして画面にも使います。</p>
+    </div>
+    <div class="card">
       <div class="row"><label>地名 <input id="tm-city" value="${esc(ws.city)}" style="width:8em"></label></div>
       <div class="row" style="margin-top:8px"><label>愛称 <input id="tm-nick" value="${esc(ws.nickname)}" style="width:9em"></label>
         <select id="tm-nick-pick"><option value="">候補から選ぶ</option>${NICKNAME_CANDIDATES.map((n) => `<option>${n}</option>`).join('')}</select></div>
@@ -191,19 +204,6 @@ function stepTeam(): string {
         <label><input type="checkbox" id="st-sea" ${s.seaside ? 'checked' : ''} ${s.dome ? 'disabled' : ''}> 海沿い（風が強い）</label>
       </div>
       <p class="muted small">狭い・フェンスが低い・テラスありは打者向き、広い・フェンスが高いは投手向きです。有利不利はつきません。</p>
-    </div>
-    <div class="card">
-      <div class="row">
-        <label>形 <select id="lg-shape">${(Object.keys(SHAPE_LABEL) as Logo['shape'][]).map((k) => opt(k, SHAPE_LABEL[k], l.shape)).join('')}</select></label>
-        <label>模様 <select id="lg-motif">${(Object.keys(MOTIF_LABEL) as Logo['motif'][]).map((k) => opt(k, MOTIF_LABEL[k], l.motif)).join('')}</select></label>
-      </div>
-      <div class="row" style="margin-top:8px"><label>ロゴの文字 <input id="lg-text" value="${esc(l.text)}" maxlength="3" style="width:4em"></label><span class="muted small">3文字まで</span></div>
-      <div class="row" style="margin-top:8px">
-        <label>メイン <input type="color" id="lg-main" value="${l.main}"></label>
-        <label>サブ <input type="color" id="lg-sub" value="${l.sub}"></label>
-      </div>
-      <div class="row" style="margin-top:8px">${COLOR_CANDIDATES.map(([m, s2], i) => `<button class="sub" data-color="${i}" style="min-height:32px;padding:2px;border-color:${m}"><span style="display:inline-block;width:18px;height:18px;background:${m};border-radius:4px"></span><span style="display:inline-block;width:10px;height:18px;background:${s2};border-radius:3px"></span></button>`).join('')}</div>
-      <p class="muted small">メインとサブの色は、チームカラーとして画面にも使います。</p>
     </div>
     <div class="row"><button class="sub" id="wz-back">戻る</button><button id="wz-next">次へ</button></div>`;
 }

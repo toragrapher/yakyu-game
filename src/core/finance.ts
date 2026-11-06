@@ -33,12 +33,53 @@ export function pay(w: World, label: string, amount: number): void {
   f.ledger.push({ year: w.season.year, label, amount });
 }
 
+/** 入出金を、同じ年・同じ項目の記録にまとめて足す（ホームゲームの収支など、回数の多いもの） */
+export function payAccum(w: World, label: string, amount: number): void {
+  const f = w.finance;
+  if (!f) return;
+  f.balance += amount;
+  const e = f.ledger.find((x) => x.year === w.season.year && x.label === label);
+  if (e) e.amount += amount;
+  else f.ledger.push({ year: w.season.year, label, amount });
+}
+
+/** 自球団がこのシーズンに消化した一軍の試合数（レギュラーシーズン） */
+function teamGamesPlayed(w: World): number {
+  const st = w.season.standings.first[w.userTeamId];
+  return st ? st.w + st.l + st.t : 0;
+}
+
 /**
- * これから払う支出の見込み：シーズン中は今年の年俸と運営費（年度を締めるときに払う）、
- * オフシーズンは来年の年俸と運営費。どちらも「今の年俸総額＋運営費」で数える
+ * 年俸の日割り：選手ごとに（所属して消化した試合数 ÷ シーズン試合数）× 年俸。
+ * シーズン途中で入った選手は、入ったときに消化していた試合数（joinedAt）から数える。
+ * upToEnd なら、シーズン最後まで在籍した場合の見込み額
+ */
+export function proratedPayroll(w: World, upToEnd = false): number {
+  const total = w.season.schedule.games;
+  const played = upToEnd ? total : teamGamesPlayed(w);
+  const joined = w.season.joinedAt ?? {};
+  let sum = 0;
+  for (const p of w.players) {
+    if (p.teamId !== w.userTeamId || p.retired) continue;
+    const games = Math.max(0, played - (joined[p.id] ?? 0));
+    sum += (p.salary * games) / total;
+  }
+  return Math.round(sum);
+}
+
+/** シーズン途中に入団した選手を記録する（獲得・トレードなど。契約金はその場で払い、年俸は日割りで期末に払う） */
+export function registerJoin(w: World, playerId: number, teamId: number): void {
+  const st = w.season.standings.first[teamId];
+  (w.season.joinedAt ??= {})[playerId] = st ? st.w + st.l + st.t : 0;
+}
+
+/**
+ * これから払う支出の見込み：シーズン中は今年の年俸（日割りでシーズン最後までの見込み）と運営費、
+ * オフシーズンは来年の年俸総額と運営費
  */
 export function pendingCosts(w: World): number {
-  return payroll(w) + OPERATING_COST;
+  if (w.offseason) return payroll(w) + OPERATING_COST;
+  return proratedPayroll(w, true) + OPERATING_COST;
 }
 
 /** 使える資金 ＝ 残高 − これから払う年俸と運営費の見込み */
@@ -52,8 +93,8 @@ export function canAfford(w: World, cost: number): boolean {
 }
 
 /** スポンサー収益の内訳 */
-export function sponsorIncome(w: World, awards: Award[]): { label: string; amount: number }[] {
-  const me = w.teams.find((t) => t.id === w.userTeamId);
+export function sponsorIncome(w: World, awards: Award[], teamId = w.userTeamId): { label: string; amount: number }[] {
+  const me = w.teams.find((t) => t.id === teamId);
   if (!me) return [];
   const rank = standingsTable(w, 'first', me.league).findIndex((r) => r.teamId === me.id);
   const ps = w.season.postseason;
@@ -74,7 +115,7 @@ export function sponsorIncome(w: World, awards: Award[]): { label: string; amoun
 /** 決算：年俸と運営費を払い、スポンサー収益を受け取る */
 export function settleYear(w: World, awards: Award[]): void {
   if (!w.finance) return;
-  pay(w, '選手の年俸', -payroll(w));
+  pay(w, '選手の年俸（所属した試合数で日割り）', -proratedPayroll(w));
   pay(w, '運営費', -OPERATING_COST);
   for (const x of sponsorIncome(w, awards)) pay(w, x.label, x.amount);
 }

@@ -5,7 +5,10 @@ import { NameRegistry } from '../names';
 import { Rng } from '../rng';
 import { makeSchedule } from '../schedule/schedule';
 import { simulateGame } from '../sim/game';
+import { summaryFor } from '../sim/summary';
 import type { GameResult, GameTeam } from '../sim/types';
+import { addGate, computeGate, initFans, updateFans } from '../gate';
+import { payAccum } from '../finance';
 import { weatherLabel } from '../sim/weather';
 import { generateAiTeams } from '../generate/team';
 import { ensureDraftCandidates } from '../draft';
@@ -16,7 +19,7 @@ import { selectFirstTeam } from './firstTeam';
 import { makeGameTeam } from './gameTeam';
 import { reviewRoster } from './roster';
 import { addBat, addPitch, emptySeason } from './stats';
-import type { GameLog, LevelKey, SeasonState, Standing, TeamSettings, World } from './types';
+import type { GameLog, GateResult, LevelKey, SeasonState, Standing, TeamSettings, World } from './types';
 
 export const defaultSettings = (): TeamSettings => ({
   lineup: null,
@@ -85,6 +88,7 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
   };
   // その年のドラフト候補（シーズン中に視察できる）
   ensureDraftCandidates(w);
+  initFans(w, new Rng(seed ^ 0x5eed));
   initFinance(w);
   return w;
 }
@@ -174,12 +178,40 @@ function recordGame(w: World, level: LevelKey, r: GameResult, date: string, play
       win: nm(r.win),
       loss: nm(r.loss),
       save: nm(r.save),
-      summary: r.summary,
+      summary: summaryFor(r, w.userTeamId),
       weather: weatherLabel(r.weather),
     };
     w.season.recentGames.unshift(log);
     w.season.recentGames.length = Math.min(w.season.recentGames.length, KEEP_RECENT_GAMES * 4);
   }
+}
+
+/** 観客の計算用の乱数（試合の乱数とは分けて、試合結果に影響しないようにする） */
+export function gateRng(w: World, date: string, homeId: number): Rng {
+  let h = w.seed ^ 0x9e3779b9;
+  for (const c of `${date}:${homeId}`) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return new Rng(h >>> 0);
+}
+
+/** 一軍の試合の後：ファンの増減、ホームゲームの観客と収支（自球団なら資金に入れる） */
+export function afterFirstTeamGame(w: World, r: GameResult, date: string, label = ''): { gate: GateResult; fanDelta: [number, number] } {
+  const res = (s: 0 | 1): 'W' | 'L' | 'T' => (r.tie ? 'T' : r.score[s] > r.score[1 - s] ? 'W' : 'L');
+  const fanDelta: [number, number] = [updateFans(w, r.awayId, res(0)), updateFans(w, r.homeId, res(1))];
+  const gate = computeGate(w, gateRng(w, date, r.homeId), r.homeId, r.awayId, date);
+  addGate(w, r.homeId, gate);
+  if (r.homeId === w.userTeamId) {
+    payAccum(w, `${label}入場料収入`, gate.ticket);
+    payAccum(w, `${label}グッズ・飲食収入`, gate.goods);
+    payAccum(w, `${label}試合運営コスト`, -gate.cost);
+  }
+  // 自球団の試合の記録に、観客と収支、ファンの増減を付ける
+  const log = w.season.recentGames[0];
+  if ((r.awayId === w.userTeamId || r.homeId === w.userTeamId) && log && log.date === date && log.level === 'first' && !label) {
+    const side: 0 | 1 = r.awayId === w.userTeamId ? 0 : 1;
+    log.fanDelta = fanDelta[side];
+    if (side === 1) log.gate = gate;
+  }
+  return { gate, fanDelta };
 }
 
 export interface DayOutcome {
@@ -225,6 +257,7 @@ export function advanceDay(w: World, keepResult = false): DayOutcome | null {
       if (!ga || !gh) continue;
       const r = simulateGame(rng, ga, gh, { dh, month: monthOf(day.date), night: level === 'first' });
       recordGame(w, level, r, day.date, players);
+      if (level === 'first') afterFirstTeamGame(w, r, day.date);
       if (level === 'first' && keepResult && (g.awayId === w.userTeamId || g.homeId === w.userTeamId)) userGame = { result: r, level, away: ga, home: gh };
     }
   }

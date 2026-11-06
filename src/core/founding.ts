@@ -14,6 +14,7 @@ import { salaryFor } from './salary';
 import { newSeason } from './season/advance';
 import { ensureDraftCandidates } from './draft';
 import { initFinance } from './finance';
+import { initFans } from './gate';
 import type { World } from './season/types';
 import type { LeagueConfig, MainPos, PitcherRole, Player, Team } from './types';
 
@@ -258,6 +259,7 @@ export function finishFounding(f: Founding): World {
   };
   // その年のドラフト候補（シーズン中に視察できる）
   ensureDraftCandidates(w);
+  initFans(w, new Rng(f.seed ^ 0x5eed));
   initFinance(w);
   return w;
 }

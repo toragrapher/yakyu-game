@@ -1,5 +1,5 @@
 // オフシーズンの流れ：年度を締める（表彰・引退・成長）→ 契約更改 → 戦力の整理 → キャンプ → 翌年のシーズン
-import { MIN_SALARY_ROSTER } from '../../config/budget';
+import { MIN_SALARY_IKUSEI, MIN_SALARY_ROSTER } from '../../config/budget';
 import { ROSTER_TEMPLATE } from '../../config/generate';
 import {
   AI_ROSTER_TARGET, IKUSEI_YEARS, RETIRE_DROP_AGE, RETIRE_DROP_RATE, RETIRE_LOW_OVERALL, RETIRE_MAX_AGE,
@@ -21,6 +21,7 @@ import { computeWish } from './contract';
 import { applyGrowth } from './growth';
 import { availableFunds, settleYear } from '../finance';
 import { offer } from './contract';
+import { fanPenalty, yearEndFans } from '../gate';
 
 function withRng<T>(w: World, fn: (rng: Rng) => T): T {
   const rng = new Rng(0);
@@ -66,8 +67,9 @@ export function closeYear(w: World): OffseasonState {
     user: me && st ? { w: st.w, l: st.l, t: st.t, rank: standings[me.league].indexOf(me.id) + 1 } : null,
   });
 
-  // 決算（自球団のお金）
+  // 決算（自球団のお金）と、ファンの入れ替わり（ライト層の一部がコア層に）
   settleYear(w, awards);
+  yearEndFans(w);
 
   // ドラフトで入ったばかりの選手は、成長も引退もしない
   const draftees = new Set((w.draft?.picks ?? []).map((x) => x.playerId));
@@ -187,13 +189,34 @@ export function userRosterCount(w: World): { roster: number; ikusei: number } {
   return { roster: ps.filter((p) => p.contract === 'roster').length, ikusei: ps.filter((p) => p.contract === 'ikusei').length };
 }
 
-/** 自球団の選手を自由契約にする（オフシーズンの戦力の整理） */
+/** 選手の扱いで離れたコア層を記録する */
+function noteFanLoss(w: World, text: string, lost: number): void {
+  if (lost <= 0 || !w.offseason) return;
+  (w.offseason.fanLoss ??= []).push({ text, lost });
+}
+
+/** 自球団の選手を自由契約にする（オフシーズンの戦力の整理）。扱いによってはコア層のファンが離れる */
 export function releasePlayer(w: World, id: number): void {
   const p = w.players.find((x) => x.id === id)!;
   if (p.teamId !== w.userTeamId) return;
   p.retired = true;
   p.teamId = null;
   w.offseason?.released.push({ name: fullName(p), teamId: w.userTeamId });
+  const count = w.offseason?.released.filter((x) => x.teamId === w.userTeamId).length ?? 0;
+  const lost = fanPenalty(w, 'release', { proYears: p.proYears, attachment: p.attachment, releasesThisYear: count });
+  noteFanLoss(w, `${fullName(p)}の自由契約`, lost);
+}
+
+/** 自球団の支配下選手を育成契約に切り替える（育成落ち）。プロ年数が浅いほど、コア層のファンが離れる */
+export function demoteToIkusei(w: World, id: number): string | null {
+  const p = w.players.find((x) => x.id === id)!;
+  if (p.teamId !== w.userTeamId) return '自球団の選手ではありません';
+  if (p.contract !== 'roster') return 'すでに育成選手です';
+  p.contract = 'ikusei';
+  p.salary = MIN_SALARY_IKUSEI;
+  const lost = fanPenalty(w, 'ikusei', { proYears: p.proYears, attachment: p.attachment, releasesThisYear: 0 });
+  noteFanLoss(w, `${fullName(p)}の育成落ち`, lost);
+  return null;
 }
 
 /** 育成選手を支配下に上げる */
@@ -275,6 +298,9 @@ export function makeOffer(w: World, playerId: number, amount: number): { result:
   if (raise > 0 && raise > availableFunds(w)) return { error: 'お金が足りないため、この金額は提示できません' };
   const result = withRng(w, (rng) => offer(w, rng, talk, amount));
   const p = w.players.find((x) => x.id === playerId)!;
-  if (result === 'left') w.season.news.unshift({ date: w.season.postseason?.date ?? '', text: `${fullName(p)}との交渉が決裂し、退団しました` });
+  if (result === 'left') {
+    w.season.news.unshift({ date: w.season.postseason?.date ?? '', text: `${fullName(p)}との交渉が決裂し、退団しました` });
+    noteFanLoss(w, `${fullName(p)}との契約決裂`, fanPenalty(w, 'contractBreak', { proYears: p.proYears, attachment: p.attachment, releasesThisYear: 0 }));
+  }
   return { result };
 }

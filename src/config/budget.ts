@@ -23,7 +23,7 @@ export const DRAFT_COST_ESTIMATE = 32000;
 export const RAISE_ESTIMATE_RATE = 0.05;
 
 /** スポンサー収益（万円）：基本額＋順位＋ポストシーズン＋スター選手 */
-export const SPONSOR_BASE = 450000;
+export const SPONSOR_BASE = 20000;
 /** リーグの順位ごとの上乗せ（1位から順に。足りない順位は最後の値） */
 export const SPONSOR_RANK_BONUS = [80000, 50000, 30000, 10000, 0, -30000];
 export const SPONSOR_POSTSEASON = 10000;

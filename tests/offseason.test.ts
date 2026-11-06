@@ -48,7 +48,8 @@ describe('オフシーズン', () => {
     expect(w.history!.length).toBe(1);
     // 決算：年俸と運営費を払い、スポンサー収益を受け取る
     const labels = w.finance!.ledger.map((x) => x.label);
-    expect(labels).toContain('選手の年俸');
+    expect(labels).toContain('選手の年俸（所属した試合数で日割り）');
+    expect(labels).toContain('入場料収入');
     expect(labels).toContain('運営費');
     expect(labels).toContain('スポンサー収益（基本）');
     expect(w.finance!.balance).not.toBe(before);

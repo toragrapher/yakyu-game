@@ -38,15 +38,15 @@ function starterText(gt: GameTeam, p: PitchLine): string {
   return `${who}${ip(p.outs)}を投げ${p.r}失点`;
 }
 
-export function makeSummary(r: GameResult, away: GameTeam, home: GameTeam): string[] {
-  if (r.tie) return [`延長${r.line[0].length}回で引き分け。`];
+/** 勝ったチーム自身の勝因と、負けたチーム自身の敗因（引き分けならどちらも空） */
+export function makeSummary(r: GameResult, away: GameTeam, home: GameTeam): { win: string[]; lose: string[] } {
+  if (r.tie) return { win: [], lose: [] };
   const w = r.score[1] > r.score[0] ? 1 : 0;
   const l = 1 - w;
   const wt = w === 1 ? home : away;
   const lt = l === 1 ? home : away;
-  const out: string[] = [];
 
-  // 勝因
+  // 勝因（勝ったチームのこと）
   const reasons: string[] = [];
   const wStarter = r.pitching[w][0];
   if (wStarter.outs >= 18 && wStarter.r <= 2) reasons.push(`${starterText(wt, wStarter)}の好投`);
@@ -62,9 +62,8 @@ export function makeSummary(r: GameResult, away: GameTeam, home: GameTeam): stri
   else if (t === 'defense' && r.errors[w] === 0 && r.score[l] <= 2) reasons.push(`「${TACTIC_LABEL[t]}」で無失策・${r.score[l]}失点`);
   if (r.save) reasons.push(`抑えの${nameOf(wt, r.save)}が逃げ切り`);
   if (reasons.length === 0) reasons.push(`${r.hits[w]}安打で${r.score[w]}点`);
-  out.push(`勝因：${reasons.slice(0, 2).join('。')}。`);
 
-  // 敗因
+  // 敗因（負けたチームのこと）
   const lose: string[] = [];
   const lStarter = r.pitching[l][0];
   if (lStarter.r >= 4) lose.push(starterText(lt, lStarter));
@@ -73,7 +72,18 @@ export function makeSummary(r: GameResult, away: GameTeam, home: GameTeam): stri
   if (lh <= 5) lose.push(`打線が${lh}安打に抑えられた`);
   const lGidp = r.batting[l].reduce((s, b) => s + b.gidp, 0);
   if (lGidp >= 2) lose.push(`併殺打${lGidp}`);
-  if (lose.length === 0 && r.loss) lose.push(`${nameOf(lt, r.loss)}が勝ち越しを許した`);
-  out.push(`敗因：${lose.slice(0, 2).join('。')}。`);
-  return out;
+  if (r.loss) {
+    const lp = r.pitching[l].find((p) => p.playerId === r.loss);
+    if (lose.length === 0 && lp) lose.push(`${nameOf(lt, r.loss)}が勝ち越しを許した`);
+  }
+  if (lose.length === 0) lose.push(`${lh}安打で${r.score[l]}点にとどまった`);
+  return { win: [`勝因：${reasons.slice(0, 2).join('。')}。`], lose: [`敗因：${lose.slice(0, 2).join('。')}。`] };
+}
+
+/** あるチームから見た試合の要約：勝てば勝因だけ、負ければ敗因だけ。teamId がなければ勝因だけ */
+export function summaryFor(r: GameResult, teamId: number | null): string[] {
+  if (r.tie) return ['引き分け。'];
+  const winnerId = r.score[1] > r.score[0] ? r.homeId : r.awayId;
+  if (teamId == null || (teamId !== r.awayId && teamId !== r.homeId)) return r.winReasons;
+  return teamId === winnerId ? r.winReasons : r.loseReasons;
 }

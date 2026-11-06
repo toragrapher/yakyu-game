@@ -11,7 +11,7 @@ import { NameRegistry } from './names';
 import { batterOverall, overall, pitcherOverall, potentialOverall } from './ratings';
 import { Rng } from './rng';
 import { winPct } from './season/standings';
-import { canAfford, pay } from './finance';
+import { canAfford, pay, registerJoin } from './finance';
 import type { DraftState, World } from './season/types';
 import type { BatAbilities, FieldPos, MainPos, PitchAbilities, PitcherRole, Player } from './types';
 
@@ -367,6 +367,8 @@ function finishDraft(w: World): void {
     p.salary = pk.salary;
     p.level = 'farm';
     w.players.push(p);
+    // シーズン後の入団なので、その年の年俸は日割りで0（翌年から全額）
+    registerJoin(w, p.id, pk.teamId);
   }
   const mine = d.picks.filter((x) => x.teamId === w.userTeamId);
   const total = mine.reduce((s, x) => s + x.bonus, 0);

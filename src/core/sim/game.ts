@@ -496,8 +496,11 @@ export function simulateGame(rng: Rng, away: GameTeam, home: GameTeam, opts: Gam
     save,
     weather,
     dh: opts.dh,
-    summary: [],
+    winReasons: [],
+    loseReasons: [],
   };
-  result.summary = makeSummary(result, away, home);
+  const sm = makeSummary(result, away, home);
+  result.winReasons = sm.win;
+  result.loseReasons = sm.lose;
   return result;
 }

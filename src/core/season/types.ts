@@ -1,4 +1,5 @@
 // ペナントの状態（セーブするデータ）
+import type { SeatKey } from '../../config/gate';
 import type { LineupPos } from '../sim/types';
 import type { LeagueConfig, Player, Schedule, Tactics, Team } from '../types';
 
@@ -43,6 +44,32 @@ export interface TeamSettings {
   autoRoster: boolean;
 }
 
+/** ホームゲーム1試合の観客と収支（お金は万円） */
+export interface GateResult {
+  attendance: number;
+  seats: Record<SeatKey, number>;
+  soldOut: SeatKey[];
+  ticket: number;
+  goods: number;
+  cost: number;
+  net: number;
+}
+
+/** 1シーズンのホームゲームの合計 */
+export interface GateTotals {
+  games: number;
+  attendance: number;
+  seats: Record<SeatKey, number>;
+  ticket: number;
+  goods: number;
+  cost: number;
+}
+
+export interface Fans {
+  core: number;
+  light: number;
+}
+
 /** 自球団の試合結果の要約（画面表示用） */
 export interface GameLog {
   date: string;
@@ -57,6 +84,10 @@ export interface GameLog {
   save: string | null;
   summary: string[];
   weather: string;
+  /** ホームゲームなら観客と収支 */
+  gate?: GateResult;
+  /** この試合でのファンの増減（コア＋ライト） */
+  fanDelta?: number;
 }
 
 /** ポストシーズンの1試合 */
@@ -131,6 +162,12 @@ export interface SeasonState {
   finished: boolean;
   /** ポストシーズン（レギュラーシーズン後に始める） */
   postseason: PostseasonState | null;
+  /** ホームゲームの観客と収支の合計（球団ごと） */
+  gate?: Record<number, GateTotals>;
+  /** 連勝（プラス）・連敗（マイナス）。球団ごと */
+  streak?: Record<number, number>;
+  /** シーズン途中で入団した選手が、入団したときにその球団が消化していた試合数（年俸の日割り用） */
+  joinedAt?: Record<number, number>;
 }
 
 /** ドラフトの候補ごとのスカウト情報 */
@@ -216,6 +253,8 @@ export interface OffseasonState {
   contracts: Record<number, ContractTalk>;
   /** 自由契約にした選手 */
   released: { name: string; teamId: number }[];
+  /** 選手の扱いで離れたコア層のファン */
+  fanLoss?: { text: string; lost: number }[];
 }
 
 /** 自球団のお金 */
@@ -245,4 +284,8 @@ export interface World {
   history?: YearRecord[];
   /** 自球団のお金 */
   finance?: Finance;
+  /** 球団ごとのファン */
+  fans?: Record<number, Fans>;
+  /** 自球団のチケットの値段（円） */
+  ticketPrices?: Record<SeatKey, number>;
 }
