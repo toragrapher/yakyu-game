@@ -38,12 +38,14 @@ interface WizardState {
   /** 第2条件（1つ目が同じ値のときに使う） */
   sortKey2: SortKey | 'none';
   desc2: boolean;
+  /** 総合評価がこの値以上の選手だけ出す（0＝指定なし） */
+  minOverall: number;
 }
 
 type SortKey = 'value' | 'now' | 'pot' | 'age' | 'contact' | 'power' | 'speed' | 'defense' | 'velocity' | 'control' | 'breaking' | 'stamina';
 
 const SORTS: [SortKey, string][] = [
-  ['value', 'おすすめ'], ['now', '即（今の力）'], ['pot', '将（将来性）'], ['age', '年齢'],
+  ['value', 'おすすめ'], ['now', '総合（今の力）'], ['pot', '将（将来性）'], ['age', '年齢'],
   ['contact', '巧打'], ['power', '長打'], ['speed', '走塁'], ['defense', '守備'],
   ['velocity', '速球'], ['control', '制球'], ['breaking', '変化球'], ['stamina', '体力'],
 ];
@@ -90,6 +92,7 @@ function initial(): WizardState {
     desc: true,
     sortKey2: 'none',
     desc2: true,
+    minOverall: 0,
   };
 }
 
@@ -239,6 +242,7 @@ function stepPick(): string {
   const all = f.pool.map((id) => f.players.find((p) => p.id === id)!);
   const groupOf = (p: Player) => (p.mainPos === 'P' ? 'P' : p.mainPos === 'C' ? 'C' : p.mainPos === 'OF' ? 'OF' : 'IF');
   let list = all.filter((p) => {
+    if (ws.minOverall > 0 && Math.round(overall(p)) < ws.minOverall) return false;
     if (ws.filter === 'all') return true;
     if (ws.filter === 'picked') return f.picks.includes(p.id);
     if (ws.filter === 'rookie') return isRookieCandidate(f, p);
@@ -265,7 +269,7 @@ function stepPick(): string {
     : `自由契約 ${f.picks.length - rookies}/${TRYOUT_MAX}人・新人 ${rookies}/${ROOKIE_MAX}人`;
   const filters: [WizardState['filter'], string][] = [['all', '全員'], ['P', '投手'], ['C', '捕手'], ['IF', '内野'], ['OF', '外野'], ...(f.method === 'tryout' ? [['veteran', '自由契約'], ['rookie', '新人']] as [WizardState['filter'], string][] : []), ['picked', '獲得済み']];
   return `${header(f.method === 'expansion' ? '③ エクスパンションドラフト' : '③ トライアウト＋新人')}
-    <div class="card"><b>${counter}</b><p class="muted small">足りないポジションは、最後に自動で埋めます。「即」は今の力、「将」は将来性です。</p>
+    <div class="card"><b>${counter}</b><p class="muted small">足りないポジションは、最後に自動で埋めます。「総合」と「即」は今の力、「将」は将来性（ランクのみ）です。</p>
       <div class="row"><button class="sub" id="pk-auto">おまかせで残りを獲る</button><button id="wz-next">確認へ</button></div></div>
     <div class="row" style="margin-bottom:8px">
       <label>並び順 <select id="pk-sort">${SORTS.map(([k, l]) => opt(k, l, ws.sortKey)).join('')}</select></label>
@@ -274,6 +278,10 @@ function stepPick(): string {
     <div class="row" style="margin-bottom:8px">
       <label>第2条件 <select id="pk-sort2">${opt<string>('none', 'なし', ws.sortKey2)}${SORTS.filter(([k]) => k !== ws.sortKey).map(([k, l]) => opt<string>(k, l, ws.sortKey2)).join('')}</select></label>
       ${ws.sortKey2 !== 'none' ? `<div class="seg" style="margin:0;flex:1"><button class="${ws.desc2 ? 'on' : ''}" data-desc2="1">${ws.sortKey2 === 'age' ? '年上から' : '高い順'}</button><button class="${ws.desc2 ? '' : 'on'}" data-desc2="0">${ws.sortKey2 === 'age' ? '若い順' : '低い順'}</button></div>` : ''}
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <label>絞り込み 総合 <select id="pk-min">${[0, 40, 50, 60, 70].map((n) => opt(n, n === 0 ? '指定なし' : `${n}以上`, ws.minOverall)).join('')}</select></label>
+      <span class="muted small">${list.length}人</span>
     </div>
     <div class="teamtabs" style="margin-bottom:8px">${filters.map(([k, l]) => `<button class="${ws.filter === k ? '' : 'sub'}" data-filter="${k}">${l}</button>`).join('')}</div>
     <div class="card">${list.slice(0, ws.shown).map((p) => candidateRow(f, p)).join('') || '<p class="muted">該当する選手はいません</p>'}
@@ -416,6 +424,7 @@ export function renderWizard(el: HTMLElement): void {
       app.refresh();
     });
     el.querySelectorAll<HTMLButtonElement>('[data-desc]').forEach((b) => b.addEventListener('click', () => { ws.desc = b.dataset.desc === '1'; ws.shown = 40; app.refresh(); }));
+    $('pk-min')!.addEventListener('change', (e) => { ws.minOverall = Number((e.target as HTMLSelectElement).value); ws.shown = 40; app.refresh(); });
     $('pk-sort2')!.addEventListener('change', (e) => {
       ws.sortKey2 = (e.target as HTMLSelectElement).value as SortKey | 'none';
       ws.desc2 = ws.sortKey2 !== 'age';
