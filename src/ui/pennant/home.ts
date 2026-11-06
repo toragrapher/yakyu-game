@@ -24,8 +24,8 @@ import { availableFunds } from '../../core/finance';
 import { closeYear, finishCamp, syncFirstYear } from '../../core/offseason/offseason';
 import { moneyLabel } from '../money';
 import { openReinforceTab } from '../reinforce';
-import { deleteSave } from '../../save/db';
-import { saveStatus } from '../../save/autosave';
+import { deleteSave, listSaves, loadWorld } from '../../save/db';
+import { saveNow, saveStatus } from '../../save/autosave';
 import { commitLocker } from '../../core/locker';
 import { todayOf } from '../../core/draft';
 
@@ -39,25 +39,80 @@ function defaultConfig(): LeagueConfig {
   };
 }
 
+/** タイトル画面：セーブ枠（3つ）を選ぶ */
 function renderStart(el: HTMLElement): void {
+  if (!app.saves) {
+    el.innerHTML = '<p class="muted" style="padding:24px">読み込み中…</p>';
+    void listSaves().then((x) => { app.saves = x; app.refresh(); }, () => { app.saves = [null, null, null]; app.refresh(); });
+    return;
+  }
+  const saves = app.saves;
+  const firstEmpty = saves.findIndex((x) => !x) + 1;
+  const when = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+  };
   el.innerHTML = `
-    <h1>球団経営シミュレーション</h1>
-    <div class="card">
-      <p>新規参入球団のGM兼監督として、球団を設立してペナントを戦います。</p>
-      <button id="st-found" style="width:100%">新しく球団をつくる</button>
+    <div class="bc-title" style="--tc:#1b3b8f;--ts:#fff">
+      <div class="bc-top"><span class="bc-tag">プレイボール</span></div>
+      <div class="bc-name" style="margin:8px 0 4px">球団経営シミュレーション</div>
+      <div class="bc-s">新規参入球団のGM兼監督として、球団を設立してペナントを戦います。</div>
     </div>
+    <h2>セーブ枠を選ぶ</h2>
+    ${saves.map((m, i) => {
+      const slot = i + 1;
+      const [team, at] = m ? m.label.split('｜') : ['', ''];
+      return `<div class="card slot-card ${m ? '' : 'empty'}">
+        <div class="slot-no">${slot}</div>
+        <div class="slot-body">
+          ${m ? `<div class="slot-team">${esc(team)}</div><div class="small">${esc(at ?? '')}</div><div class="muted small">保存 ${when(m.savedAt)}</div>` : '<div class="muted">空き</div>'}
+        </div>
+        <div class="slot-btns">
+          ${m ? `<button data-load="${slot}">続きから</button><button class="sub" data-del="${slot}">消す</button>` : `<button data-new="${slot}">新しく始める</button>`}
+        </div>
+      </div>`;
+    }).join('')}
     ${DEV_MODE ? `<div class="card">
-      <p class="muted small">開発用：AIが作った球団の1つを自球団にして、すぐ始めます。</p>
+      <p class="muted small">開発用：AIが作った球団の1つを自球団にして、空いている枠ですぐ始めます。</p>
       <div class="row"><label>シード番号 <input id="st-seed" type="number" inputmode="numeric" value="${Math.floor(Math.random() * 100000)}" style="width:8em"></label>
-      <button class="sub" id="st-go">すぐ始める</button></div>
+      <button class="sub" id="st-go" ${firstEmpty ? '' : 'disabled'}>すぐ始める</button></div>
     </div>` : ''}`;
-  el.querySelector('#st-found')!.addEventListener('click', () => {
+  el.querySelectorAll<HTMLButtonElement>('[data-new]').forEach((b) => b.addEventListener('click', () => {
+    app.slot = Number(b.dataset.new);
     resetWizard();
     app.screen = 'found';
     app.refresh();
-  });
+  }));
+  el.querySelectorAll<HTMLButtonElement>('[data-load]').forEach((b) => b.addEventListener('click', async () => {
+    const slot = Number(b.dataset.load);
+    b.disabled = true;
+    try {
+      const rec = await loadWorld(slot);
+      if (!rec) throw new Error('セーブが見つかりません');
+      app.slot = slot;
+      app.world = rec.world;
+      app.lastGame = null;
+      app.locker = null;
+      app.screen = 'home';
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (confirm(`セーブ${slot}を読み込めませんでした（${msg}）。\nこのセーブを消しますか？`)) {
+        await deleteSave(slot);
+        app.saves = null;
+      }
+    }
+    app.refresh();
+  }));
+  el.querySelectorAll<HTMLButtonElement>('[data-del]').forEach((b) => b.addEventListener('click', async () => {
+    const slot = Number(b.dataset.del);
+    if (!confirm(`セーブ${slot}を消しますか？（元には戻せません）`)) return;
+    await deleteSave(slot);
+    app.saves = null;
+    app.refresh();
+  }));
   el.querySelector('#st-go')?.addEventListener('click', () => {
     const seed = Number((el.querySelector('#st-seed') as HTMLInputElement).value) || 1;
+    app.slot = firstEmpty;
     app.world = createWorld(seed, defaultConfig(), 2027, 1, true);
     app.lastGame = null;
     app.refresh();
@@ -412,7 +467,8 @@ export function renderHome(el: HTMLElement): void {
       }).join('')}</table></details>` : ''}
 
     ${w.season.news.length ? `<details class="card"><summary><b>お知らせ</b></summary><ul class="list">${w.season.news.slice(0, 12).map((n) => `<li class="small">${dateLabel(n.date)} ${esc(n.text)}</li>`).join('')}</ul></details>` : ''}
-    <div class="card small"><div class="muted">${saveLine()}</div><button class="sub" id="new-season" style="margin-top:6px">最初からやり直す</button></div>
+    <div class="card small"><div class="muted">セーブ${app.slot}｜${saveLine()}</div>
+      <div class="bc-go2"><button class="sub" id="to-title">セーブ枠の選択へ</button><button class="sub" id="new-season">最初からやり直す</button></div></div>
   `;
   el.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) =>
     b.addEventListener('click', () => run(b.dataset.run === 'end' ? 'end' : Number(b.dataset.run))),
@@ -444,11 +500,21 @@ export function renderHome(el: HTMLElement): void {
     app.refresh();
   });
   el.querySelector('#new-season')!.addEventListener('click', () => {
-    if (confirm('今の球団とセーブを消して、最初からやり直しますか？（元には戻せません）')) {
+    if (confirm(`セーブ${app.slot}の球団を消して、最初からやり直しますか？（元には戻せません）`)) {
       app.world = null;
       app.lastGame = null;
       app.locker = null;
-      void deleteSave().then(() => app.refresh());
+      app.saves = null;
+      void deleteSave(app.slot).then(() => app.refresh());
     }
+  });
+  el.querySelector('#to-title')!.addEventListener('click', async () => {
+    if (app.busy) return;
+    await saveNow();
+    app.world = null;
+    app.lastGame = null;
+    app.locker = null;
+    app.saves = null;
+    app.refresh();
   });
 }

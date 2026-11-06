@@ -9,7 +9,7 @@ import { renderRecords } from './ui/records';
 import { renderReinforce } from './ui/reinforce';
 import './ui/style.css';
 import { scheduleSave } from './save/autosave';
-import { deleteSave, loadWorld } from './save/db';
+import { listSaves } from './save/db';
 import { registerServiceWorker } from './pwa';
 
 const root = document.getElementById('app')!;
@@ -79,18 +79,16 @@ function refresh(): void {
 app.refresh = () => {
   refresh();
   // 進めている途中（シーズン終了まで など）は、終わってから保存する
-  if (!app.busy) scheduleSave(app.world);
+  if (!app.busy) scheduleSave(app.world, app.slot);
 };
 
-/** 起動：保存してある続きがあれば読み込む */
+/** 起動：セーブ枠の一覧を読み込んで、タイトル画面（枠の選択）を出す */
 async function boot(): Promise<void> {
   screen.innerHTML = '<p class="muted" style="padding:24px">読み込み中…</p>';
   try {
-    const rec = await loadWorld();
-    if (rec) app.world = rec.world;
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (confirm(`セーブデータを読み込めませんでした（${msg}）。\nセーブを消して最初から始めますか？`)) await deleteSave();
+    app.saves = await listSaves();
+  } catch {
+    app.saves = [null, null, null];
   }
   app.refresh();
 }

@@ -5,6 +5,7 @@ import { saveWorld } from './db';
 const DELAY_MS = 800;
 let timer: number | null = null;
 let current: World | null = null;
+let currentSlot = 1;
 let lastSavedAt: Date | null = null;
 let lastError: string | null = null;
 let onStatus: (() => void) | null = null;
@@ -16,7 +17,7 @@ async function flush(): Promise<void> {
   }
   if (!current) return;
   try {
-    await saveWorld(current);
+    await saveWorld(current, currentSlot);
     lastSavedAt = new Date();
     lastError = null;
   } catch (e) {
@@ -26,8 +27,14 @@ async function flush(): Promise<void> {
 }
 
 /** 保存を予約する（続けて呼ばれたら、最後の1回だけ保存する） */
-export function scheduleSave(w: World | null): void {
+export function scheduleSave(w: World | null, slot: number): void {
+  if (current !== w || currentSlot !== slot) {
+    // 別の枠に切り替えたら、前の保存時刻は出さない
+    lastSavedAt = null;
+    lastError = null;
+  }
   current = w;
+  currentSlot = slot;
   if (!w) return;
   if (timer != null) clearTimeout(timer);
   timer = window.setTimeout(() => void flush(), DELAY_MS);

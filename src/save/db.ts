@@ -5,7 +5,19 @@ const DB_NAME = 'yakyu-game';
 const STORE = 'saves';
 /** セーブデータの形が変わったら上げる（読み込みのときに変換する） */
 export const SAVE_VERSION = 1;
-const SLOT = 'main';
+/** セーブ枠の数 */
+export const SLOT_COUNT = 3;
+/** 枠を作る前の版のセーブ（読み込むときに枠1へ移す） */
+const OLD_SLOT = 'main';
+const slotKey = (slot: number) => `slot${slot}`;
+const metaKey = (slot: number) => `meta${slot}`;
+
+/** セーブ枠の一覧に出す情報（世界のデータは重いので別に持つ） */
+export interface SaveMeta {
+  slot: number;
+  savedAt: string;
+  label: string;
+}
 
 export interface SaveRecord {
   id: string;
@@ -58,22 +70,51 @@ export function saveLabel(w: World): string {
   return `${me?.name ?? '球団'}｜${when}`;
 }
 
-/** 保存する（いつも同じ場所に上書き） */
-export async function saveWorld(w: World): Promise<void> {
-  const rec: SaveRecord = { id: SLOT, version: SAVE_VERSION, savedAt: new Date().toISOString(), label: saveLabel(w), world: w };
-  await tx('readwrite', (s) => s.put(rec));
+/** 枠に保存する（上書き） */
+export async function saveWorld(w: World, slot = 1): Promise<void> {
+  const savedAt = new Date().toISOString();
+  const label = saveLabel(w);
+  const rec: SaveRecord = { id: slotKey(slot), version: SAVE_VERSION, savedAt, label, world: w };
+  await tx('readwrite', (s) => {
+    s.put({ id: metaKey(slot), slot, savedAt, label });
+    return s.put(rec);
+  });
 }
 
-/** 読み込む（なければ null） */
-export async function loadWorld(): Promise<SaveRecord | null> {
-  const rec = await tx<SaveRecord | undefined>('readonly', (s) => s.get(SLOT));
+/** 枠から読み込む（なければ null） */
+export async function loadWorld(slot = 1): Promise<SaveRecord | null> {
+  await moveOldSave();
+  const rec = await tx<SaveRecord | undefined>('readonly', (s) => s.get(slotKey(slot)));
   if (!rec) return null;
   return migrate(rec);
 }
 
-/** セーブを消す */
-export async function deleteSave(): Promise<void> {
-  await tx('readwrite', (s) => s.delete(SLOT));
+/** 枠のセーブを消す */
+export async function deleteSave(slot = 1): Promise<void> {
+  await tx('readwrite', (s) => {
+    s.delete(metaKey(slot));
+    return s.delete(slotKey(slot));
+  });
+}
+
+/** 全部の枠の情報（空の枠は null） */
+export async function listSaves(): Promise<(SaveMeta | null)[]> {
+  await moveOldSave();
+  const out: (SaveMeta | null)[] = [];
+  for (let i = 1; i <= SLOT_COUNT; i++) {
+    const m = await tx<(SaveMeta & { id: string }) | undefined>('readonly', (s) => s.get(metaKey(i)));
+    out.push(m ? { slot: m.slot, savedAt: m.savedAt, label: m.label } : null);
+  }
+  return out;
+}
+
+/** 枠を作る前のセーブがあれば、枠1に移す（枠1が空のときだけ） */
+async function moveOldSave(): Promise<void> {
+  const old = await tx<SaveRecord | undefined>('readonly', (s) => s.get(OLD_SLOT));
+  if (!old) return;
+  const used = await tx<SaveRecord | undefined>('readonly', (s) => s.get(slotKey(1)));
+  if (!used) await saveWorld(old.world, 1);
+  await tx('readwrite', (s) => s.delete(OLD_SLOT));
 }
 
 /** 古い形のセーブを今の形に直す（今は版1だけ） */
