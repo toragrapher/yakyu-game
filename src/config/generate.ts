@@ -69,4 +69,4 @@ export const ABILITY_MAX = 100;
  * AI球団どうしの戦力差をどれだけ縮めるか（0＝そのまま、1＝完全にそろえる）。
  * 一軍の平均能力をリーグ平均に近づける。
  */
-export const TEAM_PARITY = 0.95;
+export const TEAM_PARITY = 1.0;

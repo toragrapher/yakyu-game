@@ -29,11 +29,11 @@ function report(title: string, target: Target, values: number[], passRate: numbe
 }
 
 console.log(`\n=== 検証結果：${seasons}シーズン（${results[0].teams.length}球団、143試合）===\n`);
-console.log('【チーム成績】（範囲内が95%以上で合格）');
+console.log(`【チーム成績】（範囲内が${TEAM_PASS_RATE * 100}%以上で合格）`);
 const teams = results.flatMap((r) => r.teams);
 for (const t of TEAM_TARGETS) report('', t, teams.map((x) => x[t.key as keyof typeof x] as number), TEAM_PASS_RATE);
 
-console.log('\n【タイトル】（リーグごと。範囲内が90%以上で合格）');
+console.log(`\n【タイトル】（リーグごと。範囲内が${LEADER_PASS_RATE * 100}%以上で合格）`);
 const leaders = results.flatMap((r) => r.leaders);
 for (const t of LEADER_TARGETS) report('', t, leaders.map((x) => x[t.key as keyof typeof x] as number).filter((v) => !Number.isNaN(v)), LEADER_PASS_RATE);
 

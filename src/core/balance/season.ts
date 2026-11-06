@@ -6,7 +6,7 @@ import { Rng } from '../rng';
 import { relieverAvailable, selectFirstTeam, type FirstTeam } from '../season/firstTeam';
 import { simulateGame } from '../sim/game';
 import { buildGameTeam } from '../sim/lineup';
-import type { Team } from '../types';
+import type { Player, Team } from '../types';
 
 export interface TeamSeason {
   teamId: number;
@@ -31,6 +31,8 @@ export interface TeamSeason {
 export interface LeagueLeaders {
   league: 0 | 1;
   battingTitle: number;
+  /** 首位打者の選手ID（調査用） */
+  battingTitleId: number;
   hrKing: number;
   eraTitle: number;
 }
@@ -40,6 +42,8 @@ export interface BalanceSeason {
   leaders: LeagueLeaders[];
   leagueAvg: number;
   leagueEra: number;
+  /** この検証で作った選手（調査用） */
+  players: Player[];
 }
 
 /** 総当たりの組み合わせ（サークル方式）。奇数のときは1球団が休み */
@@ -62,6 +66,7 @@ export function roundRobinDays(teamIds: number[]): [number, number][][] {
 }
 
 interface PlayerAgg {
+  id: number;
   pa: number;
   ab: number;
   h: number;
@@ -116,13 +121,13 @@ export function runBalanceSeason(seed: number, counts: readonly [number, number]
         for (const b of r.batting[s]) {
           a.ab += b.ab; a.h += b.h; a.hr += b.hr; a.sb += b.sb; a.k += b.k; a.bb += b.bb; a.pa += b.pa;
           a.tb += b.h + b.d + 2 * b.t + 3 * b.hr; a.ob += b.h + b.bb + b.hbp;
-          const pa = pAgg.get(b.playerId) ?? { pa: 0, ab: 0, h: 0, hr: 0, outs: 0, er: 0, league };
+          const pa = pAgg.get(b.playerId) ?? { id: b.playerId, pa: 0, ab: 0, h: 0, hr: 0, outs: 0, er: 0, league };
           pa.pa += b.pa; pa.ab += b.ab; pa.h += b.h; pa.hr += b.hr;
           pAgg.set(b.playerId, pa);
         }
         for (const p of r.pitching[s]) {
           a.er += p.er; a.outs += p.outs;
-          const pa = pAgg.get(p.playerId) ?? { pa: 0, ab: 0, h: 0, hr: 0, outs: 0, er: 0, league };
+          const pa = pAgg.get(p.playerId) ?? { id: p.playerId, pa: 0, ab: 0, h: 0, hr: 0, outs: 0, er: 0, league };
           pa.outs += p.outs; pa.er += p.er;
           pAgg.set(p.playerId, pa);
           pitchedToday.set(p.playerId, p.pitches);
@@ -158,6 +163,7 @@ export function runBalanceSeason(seed: number, counts: readonly [number, number]
     return {
       league: lg,
       battingTitle: Math.max(0, ...qb.map((p) => p.h / p.ab)),
+      battingTitleId: qb.reduce((b, p) => (p.h / p.ab > b.h / Math.max(1, b.ab) ? p : b), qb[0] ?? { id: -1, h: 0, ab: 1 }).id,
       hrKing: Math.max(0, ...ps.map((p) => p.hr)),
       eraTitle: qp.length ? Math.min(...qp.map((p) => (p.er * 27) / p.outs)) : NaN,
     };
@@ -165,5 +171,5 @@ export function runBalanceSeason(seed: number, counts: readonly [number, number]
 
   let h = 0, ab = 0, er = 0, outs = 0;
   for (const a of tAgg.values()) { h += a.h; ab += a.ab; er += a.er; outs += a.outs; }
-  return { teams: teamSeasons, leaders, leagueAvg: h / ab, leagueEra: (er * 27) / outs };
+  return { teams: teamSeasons, leaders, leagueAvg: h / ab, leagueEra: (er * 27) / outs, players };
 }

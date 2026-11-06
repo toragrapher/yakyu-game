@@ -28,6 +28,6 @@ export const LEADER_TARGETS: Target[] = [
 /** リーグ平均の目安 */
 export const LEAGUE_AVG_TARGET = { avg: 0.255, era: 3.4, avgTolerance: 0.008, eraTolerance: 0.25 };
 
-/** 合格の基準：チームの指標は95%以上、タイトルは90%以上が範囲内 */
+/** 合格の基準：チームの指標は95%以上、タイトルは80%以上が範囲内（タイトルは2026-11-06にユーザーと決定） */
 export const TEAM_PASS_RATE = 0.95;
-export const LEADER_PASS_RATE = 0.9;
+export const LEADER_PASS_RATE = 0.8;

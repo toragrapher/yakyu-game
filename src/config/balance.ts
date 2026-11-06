@@ -20,7 +20,7 @@ export const BASE_RATES = {
 
 /** 打高・打低の全体係数（1より大きいと増える） */
 export const GLOBAL = {
-  hit: 1.12, // 単打・二塁打・三塁打
+  hit: 1.135, // 単打・二塁打・三塁打
   hr: 0.82, // 本塁打
   k: 1.04, // 三振
   bb: 0.78, // 四球
@@ -37,7 +37,7 @@ export const ELASTICITY = {
   BB: { contact: 0.05, power: 0.08, control: -0.25 },
   HBP: { control: -0.15 },
   S: { contact: 0.2, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
-  D: { contact: 0.08, power: 0.1, speed: 0.03, breaking: -0.07, defense: -0.04 },
+  D: { contact: 0.08, power: 0.06, speed: 0.03, breaking: -0.07, defense: -0.04 },
   T: { power: 0.05, speed: 0.3, defense: -0.04 },
   HR: { contact: 0.03, power: 0.9, velocity: -0.06, breaking: -0.06, control: -0.05 },
 };
@@ -50,9 +50,9 @@ export const SOFT_CAP: Record<string, { start: number; factor: number }> = {
   contact: { start: 68, factor: 0.35 },
   power: { start: 82, factor: 0.5 },
   speed: { start: 80, factor: 0.6 },
-  velocity: { start: 74, factor: 0.45 },
-  control: { start: 74, factor: 0.45 },
-  breaking: { start: 74, factor: 0.45 },
+  velocity: { start: 73, factor: 0.42 },
+  control: { start: 73, factor: 0.42 },
+  breaking: { start: 73, factor: 0.42 },
 };
 
 /** 調子（1〜5）が1段階ずれるごとに、能力を何ポイント上下させるか */
@@ -153,7 +153,7 @@ export const PARK = {
   size: { small: { hr: 1.1, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, large: { hr: 0.9, d: 1.05 } },
   fence: { low: { hr: 1.07, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, high: { hr: 0.9, d: 1.08 } },
   terrace: { hr: 1.08 },
-  artificialTurf: { s: 1.03, d: 1.02 },
+  artificialTurf: { s: 1.02, d: 1.01 },
 };
 
 /** 天候の補正 */
