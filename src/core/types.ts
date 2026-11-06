@@ -94,8 +94,6 @@ export interface Stadium {
 export interface Logo {
   shape: 'shield' | 'circle' | 'emblem' | 'diamond';
   motif: 'animal' | 'star' | 'wave' | 'bat' | 'none';
-  /** 絵文字の模様（あれば motif の代わりに使う。色は絵文字のまま） */
-  emoji?: string;
   text: string;
   main: string; // 色（#rrggbb）
   sub: string;
