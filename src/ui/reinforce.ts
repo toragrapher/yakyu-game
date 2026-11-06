@@ -33,10 +33,10 @@ export function openReinforceTab(t: typeof tab): void {
   tab = t;
 }
 
-/** ランクの幅（例：「C〜A」。同じなら「B」） */
+/** ランクの幅（高い方から。例：「A〜C」。同じなら「B」） */
 function rankRange([lo, hi]: [number, number]): string {
-  const a = rankOf(lo);
-  const b = rankOf(hi);
+  const a = rankOf(hi);
+  const b = rankOf(lo);
   return a === b ? a : `${a}〜${b}`;
 }
 
