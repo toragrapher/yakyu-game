@@ -156,6 +156,11 @@ function runPost(mode: 'day' | 'end'): void {
   tick();
 }
 
+/** ホーム・ビジターの印 */
+function haChip(home: boolean): string {
+  return `<span class="chip" style="background:${home ? 'var(--accent)' : 'var(--line)'};color:${home ? '#fff' : 'var(--text)'}">${home ? 'ホーム' : 'ビジター'}</span>`;
+}
+
 /** ホームゲームの観客と収支 */
 function gateBox(g: GateResult): string {
   const seats = SEATS.map((x) => `${x.name.replace('席', '')} ${g.seats[x.key].toLocaleString()}${g.soldOut.includes(x.key) ? '（満員）' : ''}`).join('・');
@@ -320,17 +325,18 @@ export function renderHome(el: HTMLElement): void {
     ${w.season.postseason && lg?.label ? `<h2>直近の試合（${esc(lg.label.replace(/^.+リーグ /, ''))}）</h2>${renderGameResult(lg.result, lg.away, lg.home, me.id)}` : ''}
 
     ${lastLog && !w.season.postseason ? `
-    <h2>直近の試合</h2>
+    <h2>直近の試合（${dateLabel(lastLog.date)}）</h2>
     <div class="card">
       <div class="row" style="justify-content:space-between">
         <div><span class="big ${lastLog.result === 'W' ? 'win' : lastLog.result === 'L' ? 'lose' : ''}">${mark(lastLog.result)} ${lastLog.runsFor}-${lastLog.runsAgainst}</span>
-        <span class="small">${lastLog.home ? 'vs' : '@'} ${teamChip(w.teams.find((t) => t.id === lastLog.opponentId))}</span></div>
-        <span class="muted small">${dateLabel(lastLog.date)}</span>
+        <span class="small">${teamChip(w.teams.find((t) => t.id === lastLog.opponentId))}戦</span></div>
+        ${haChip(lastLog.home)}
       </div>
+      <div class="muted small">${esc((lastLog.home ? me : w.teams.find((t) => t.id === lastLog.opponentId)!).stadium.name)}${lastLog.home ? '' : '（相手の本拠地）'}</div>
       <p class="small">${[lastLog.win ? `勝 ${esc(lastLog.win)}` : '', lastLog.loss ? `負 ${esc(lastLog.loss)}` : '', lastLog.save ? `S ${esc(lastLog.save)}` : ''].filter(Boolean).join('　')}</p>
       ${lastLog.summary.map((t) => `<p class="small">${esc(t)}</p>`).join('')}
       ${lastLog.fanDelta != null ? `<p class="small">ファン ${lastLog.fanDelta >= 0 ? '<span class="win">+' : '<span class="lose">'}${lastLog.fanDelta.toLocaleString()}人</span></p>` : ''}
-      ${lastLog.gate ? gateBox(lastLog.gate) : ''}
+      ${lastLog.gate ? gateBox(lastLog.gate) : !lastLog.home ? '<p class="small muted" style="border-top:1px solid var(--line);margin-top:6px;padding-top:6px">ビジターの試合なので、入場料・グッズ・飲食の収入は相手球団に入ります（自球団の収支はありません）。</p>' : ''}
       ${lg && lg.result.awayId + lg.result.homeId === me.id + lastLog.opponentId ? `<details><summary class="small">スコアと成績を見る</summary>${renderGameResult(lg.result, lg.away, lg.home, me.id)}</details>` : ''}
     </div>` : ''}
 
@@ -356,7 +362,7 @@ export function renderHome(el: HTMLElement): void {
     ${logs.length > 1 ? `<details class="card"><summary><b>最近の結果（一軍）</b></summary><table class="box">
       ${logs.slice(0, 15).map((g) => {
         const o = w.teams.find((t) => t.id === g.opponentId);
-        return `<tr><td class="tl">${dateLabel(g.date)}</td><td class="tl">${g.home ? 'vs' : '@'} ${teamChip(o)}</td><td class="${g.result === 'W' ? 'win' : g.result === 'L' ? 'lose' : ''}">${mark(g.result)} ${g.runsFor}-${g.runsAgainst}</td><td class="tl small">${esc(g.result === 'W' ? (g.win ?? '') : g.result === 'L' ? (g.loss ?? '') : '')}</td></tr>`;
+        return `<tr><td class="tl">${dateLabel(g.date)}</td><td class="tl">${haChip(g.home)} ${teamChip(o)}</td><td class="${g.result === 'W' ? 'win' : g.result === 'L' ? 'lose' : ''}">${mark(g.result)} ${g.runsFor}-${g.runsAgainst}</td><td class="tl small">${esc(g.result === 'W' ? (g.win ?? '') : g.result === 'L' ? (g.loss ?? '') : '')}</td></tr>`;
       }).join('')}</table></details>` : ''}
 
     ${w.season.news.length ? `<h2>お知らせ</h2><div class="card"><ul class="list">${w.season.news.slice(0, 8).map((n) => `<li class="small">${dateLabel(n.date)} ${esc(n.text)}</li>`).join('')}</ul></div>` : ''}

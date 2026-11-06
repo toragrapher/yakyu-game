@@ -61,6 +61,25 @@ describe('観客とお金', () => {
     expect(w.fans![w.userTeamId].core).not.toBe(f.core - 1);
   });
 
+  it('収支が付くのはホームゲームだけ（日程のホーム・ビジターと一致する）', () => {
+    const w = createWorld(7, cfg(), 2027);
+    let home = 0;
+    let away = 0;
+    for (let i = 0; i < 40; i++) {
+      const out = advanceDay(w, true);
+      if (!out?.userGame) continue;
+      const log = w.season.recentGames.find((g) => g.level === 'first')!;
+      const isHome = out.userGame.result.homeId === w.userTeamId;
+      expect(log.date).toBe(out.date);
+      expect(log.home).toBe(isHome);
+      expect(!!log.gate).toBe(isHome);
+      if (isHome) home++;
+      else away++;
+    }
+    expect(home).toBeGreaterThan(0);
+    expect(away).toBeGreaterThan(0);
+  });
+
   it('チケットの値段は開幕前だけ変えられる', () => {
     const w = createWorld(4, cfg(), 2027);
     expect(canChangePrices(w)).toBe(true);
