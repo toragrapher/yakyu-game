@@ -160,7 +160,7 @@ function recordGame(w: World, level: LevelKey, r: GameResult, date: string, play
       weather: weatherLabel(r.weather),
     };
     w.season.recentGames.unshift(log);
-    w.season.recentGames.length = Math.min(w.season.recentGames.length, KEEP_RECENT_GAMES * 2);
+    w.season.recentGames.length = Math.min(w.season.recentGames.length, KEEP_RECENT_GAMES * 4);
   }
 }
 

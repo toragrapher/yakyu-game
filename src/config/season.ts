@@ -52,3 +52,5 @@ export const FARM_DH = true;
 
 /** 試合結果を残す数（自球団） */
 export const KEEP_RECENT_GAMES = 10;
+/** ホーム画面の「選手の様子」で疲れていると知らせる疲労 */
+export const TIRED_NOTICE = 60;

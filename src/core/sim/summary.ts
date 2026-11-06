@@ -33,7 +33,9 @@ function batText(gt: GameTeam, b: BatLine): string {
 }
 
 function starterText(gt: GameTeam, p: PitchLine): string {
-  return `先発${nameOf(gt, p.playerId)}が${ip(p.outs)}${p.r}失点`;
+  const who = `先発${nameOf(gt, p.playerId)}が`;
+  if (p.outs < 3) return `${who}1回もたずに${p.r}失点`;
+  return `${who}${ip(p.outs)}を投げ${p.r}失点`;
 }
 
 export function makeSummary(r: GameResult, away: GameTeam, home: GameTeam): string[] {
