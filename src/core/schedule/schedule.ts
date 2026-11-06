@@ -1,7 +1,8 @@
 // 日程の作成
 // 1. 対戦相手ごとの試合数を決める（全球団の試合数をそろえる）
 // 2. 試合を「カード」（同じ相手と続けて行う1〜3試合）に分ける
-// 3. カードを「枠」（火〜木・金〜日）に詰める。1つの枠で同じ球団が2カード入らないようにする
+// 3. カードを「枠」（火〜木・金〜日）に詰める。1つの枠で同じ球団が2カード入らないようにし、
+//    同じ相手とのカードが続かないようにする
 // 4. 枠を日付に直す（月曜は休み）
 import {
   DEFAULT_GAMES, INTERLEAGUE_START_RATIO, MAX_GAMES_PER_CARD, OPENING_MONTH, SEASON_END,
@@ -131,10 +132,22 @@ function balanceHomes(cards: Card[]): void {
   }
 }
 
-/** カードを枠に詰める（貪欲法：残りカードの多い球団から相手を決める） */
-function packOnce(rng: Rng, cards: Card[], teamIds: number[]): Card[][] {
+/** 詰めた結果：枠の並びと、各球団の最後の対戦相手（次の期間へ引き継ぐ） */
+interface Packed {
+  slots: Card[][];
+  last: Map<number, number>;
+  /** 同じ相手とのカードが続いてしまった数 */
+  repeats: number;
+}
+
+/**
+ * カードを枠に詰める（貪欲法：残りカードの多い球団から相手を決める）。
+ * 直前のカードと同じ相手は選ばない。どの球団も組めない枠になったときだけ例外として許す。
+ */
+function packOnce(rng: Rng, cards: Card[], teamIds: number[], lastIn: Map<number, number>): Packed {
   const byPair = new Map<string, Card[]>();
   const left = new Map<number, number>(teamIds.map((t) => [t, 0]));
+  const last = new Map(lastIn);
   for (const c of cards) {
     const k = pairKey(c.a, c.b);
     if (!byPair.has(k)) byPair.set(k, []);
@@ -143,48 +156,62 @@ function packOnce(rng: Rng, cards: Card[], teamIds: number[]): Card[][] {
     left.set(c.b, left.get(c.b)! + 1);
   }
   let remaining = cards.length;
+  let repeats = 0;
   const slots: Card[][] = [];
+  const isRepeat = (t: number, o: number) => last.get(t) === o || last.get(o) === t;
   while (remaining > 0) {
     const order = rng.shuffle(teamIds).sort((x, y) => left.get(y)! - left.get(x)!);
-    const used = new Set<number>();
-    const slot: Card[] = [];
-    for (const t of order) {
-      if (used.has(t) || left.get(t)! === 0) continue;
-      let best: number | null = null;
-      let bestScore = -1;
-      for (const o of order) {
-        if (o === t || used.has(o)) continue;
-        const list = byPair.get(pairKey(t, o));
-        if (!list || list.length === 0) continue;
-        const score = left.get(o)! * 10 + list.length;
-        if (score > bestScore) {
-          bestScore = score;
-          best = o;
+    const fill = (allowRepeat: boolean): Card[] => {
+      const used = new Set<number>();
+      const slot: Card[] = [];
+      for (const t of order) {
+        if (used.has(t) || left.get(t)! === 0) continue;
+        let best: number | null = null;
+        let bestScore = -1;
+        for (const o of order) {
+          if (o === t || used.has(o)) continue;
+          if (!allowRepeat && isRepeat(t, o)) continue;
+          const list = byPair.get(pairKey(t, o));
+          if (!list || list.length === 0) continue;
+          const score = left.get(o)! * 10 + list.length;
+          if (score > bestScore) {
+            bestScore = score;
+            best = o;
+          }
         }
+        if (best == null) continue;
+        slot.push(byPair.get(pairKey(t, best))!.pop()!);
+        used.add(t);
+        used.add(best);
       }
-      if (best == null) continue;
-      const card = byPair.get(pairKey(t, best))!.pop()!;
-      slot.push(card);
-      used.add(t);
-      used.add(best);
-      left.set(t, left.get(t)! - 1);
-      left.set(best, left.get(best)! - 1);
+      return slot;
+    };
+    let slot = fill(false);
+    if (slot.length === 0) {
+      slot = fill(true);
+      repeats += slot.length;
+    }
+    for (const c of slot) {
+      last.set(c.a, c.b);
+      last.set(c.b, c.a);
+      left.set(c.a, left.get(c.a)! - 1);
+      left.set(c.b, left.get(c.b)! - 1);
       remaining--;
     }
     slots.push(slot);
   }
-  return slots;
+  return { slots, last, repeats };
 }
 
-/** 何通りか試して、枠の数が一番少ない詰め方を選ぶ */
-function packSlots(rng: Rng, cards: Card[], teamIds: number[]): Card[][] {
-  let best: Card[][] | null = null;
+/** 何通りか試して、「同じ相手の連続が少ない → 枠の数が少ない」詰め方を選ぶ */
+function packSlots(rng: Rng, cards: Card[], teamIds: number[], last: Map<number, number>): Packed {
+  let best: Packed | null = null;
   for (let i = 0; i < PACK_TRIES; i++) {
     const copy = cards.map((c) => ({ ...c }));
-    const slots = packOnce(rng, copy, teamIds);
-    if (!best || slots.length < best.length) best = slots;
+    const p = packOnce(rng, copy, teamIds, last);
+    if (!best || p.repeats < best.repeats || (p.repeats === best.repeats && p.slots.length < best.slots.length)) best = p;
   }
-  return best ?? [];
+  return best ?? { slots: [], last, repeats: 0 };
 }
 
 /** その年の3月の最終金曜日 */
@@ -274,9 +301,13 @@ function buildSchedule(rng: Rng, teams: Team[], cfg: LeagueConfig, year: number,
       const nBefore = Math.round(list.length * INTERLEAGUE_START_RATIO);
       list.forEach((c, i) => (i < nBefore ? before : after).push(c));
     }
-    slots = [...packSlots(rng, before, allIds), ...packSlots(rng, interCards, allIds), ...packSlots(rng, after, allIds)];
+    // 期間をまたいでも、同じ相手が続かないように最後の相手を引き継ぐ
+    const p1 = packSlots(rng, before, allIds, new Map());
+    const p2 = packSlots(rng, interCards, allIds, p1.last);
+    const p3 = packSlots(rng, after, allIds, p2.last);
+    slots = [...p1.slots, ...p2.slots, ...p3.slots];
   } else {
-    slots = packSlots(rng, [...intraCards, ...interCards], allIds);
+    slots = packSlots(rng, [...intraCards, ...interCards], allIds, new Map()).slots;
   }
 
   // 枠を日付に直す

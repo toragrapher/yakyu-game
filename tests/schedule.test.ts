@@ -22,7 +22,7 @@ describe('日程', () => {
   });
 
   for (const [a, b, mode] of CASES) {
-    it(`${a}球団＋${b}球団・交流戦${mode}：試合数がそろい、同じ日に2試合なし、月曜は休み`, () => {
+    it(`${a}球団＋${b}球団・交流戦${mode}：試合数がそろい、同じ日に2試合なし、月曜は休み、同じ相手が続かない`, () => {
       const rng = new Rng(a * 100 + b);
       const { teams } = generateAiTeams(rng, new NameRegistry(), [a, b]);
       const cfg = config(a, b, mode);
@@ -46,6 +46,15 @@ describe('日程', () => {
         for (const x of ts) if (!x.interleague) vs.set(x.opponent, (vs.get(x.opponent) ?? 0) + 1);
         const v = [...vs.values()];
         expect(Math.max(...v) - Math.min(...v)).toBeLessThanOrEqual(1);
+        // 同じ相手とのカードが続かない：同じ相手が続く試合は1カード（3試合以内、ホームとビジターが入れ替わらない）
+        let run = 1;
+        for (let i = 1; i < ts.length; i++) {
+          if (ts[i].opponent === ts[i - 1].opponent) {
+            run++;
+            expect(run).toBeLessThanOrEqual(3);
+            expect(ts[i].home).toBe(ts[i - 1].home);
+          } else run = 1;
+        }
       }
       // 期間集中型なら、交流戦の期間中はリーグ戦をしない
       if (mode === 'period') {
