@@ -1,8 +1,10 @@
-// ドラフト会議の画面：候補一覧（スカウト報告の幅）→ 視察 → 1位指名（抽選）→ 2位以降 → 育成 → 結果
+// 補強の画面：ドラフト候補（シーズン中の視察とドラフト会議）、助っ人外国人とスカウト配置（第2段階）
 import { MAX_IKUSEI_PICKS, MAX_REGULAR_PICKS } from '../config/draft';
 import {
-  available, beginRound1, currentTeam, scoutReport, startDraft, submitRound1, userPass, userPick, visit,
+  available, beginRound1, currentTeam, ensureDraftCandidates, scoutReport, submitRound1, userPass, userPick, visit,
+  visitedThisMonth, visitsLeftThisMonth,
 } from '../core/draft';
+import type { World } from '../core/season/types';
 import { fullName, POS_LABEL, ROLE_LABEL } from '../core/labels';
 import { rankOf } from '../core/ratings';
 import type { DraftState } from '../core/season/types';
@@ -18,6 +20,7 @@ let pos: 'all' | 'P' | 'C' | 'IF' | 'OF' = 'all';
 let sortKey: 'pot' | 'now' | 'age' = 'pot';
 let shown = 40;
 let showAllLog = false;
+let tab: 'draft' | 'foreign' | 'scout' = 'draft';
 
 /** ランクの幅（例：「C〜A」。同じなら「B」） */
 function rankRange([lo, hi]: [number, number]): string {
@@ -30,7 +33,7 @@ function rankRangeBadge(r: [number, number]): string {
   return `<span class="rank rank-${rankOf((r[0] + r[1]) / 2)}">${rankRange(r)}</span>`;
 }
 
-function candidateRow(d: DraftState, p: Player, canPick: boolean): string {
+function candidateRow(w: World, d: DraftState, p: Player, canPick: boolean): string {
   const rep = scoutReport(d, p);
   const v = d.scout[p.id]?.visits ?? 0;
   const posL = p.mainPos === 'P' ? ROLE_LABEL[p.role!] : POS_LABEL[p.mainPos];
@@ -41,15 +44,26 @@ function candidateRow(d: DraftState, p: Player, canPick: boolean): string {
       <div class="muted small">視察 ${v}回</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:4px">
-      <button class="sub" data-visit="${p.id}" ${d.visitsLeft <= 0 ? 'disabled' : ''}>視察</button>
+      ${d.phase === 'scouting' ? `<button class="sub" data-visit="${p.id}" ${visitsLeftThisMonth(w) <= 0 || visitedThisMonth(w, p.id) ? 'disabled' : ''}>${visitedThisMonth(w, p.id) ? '視察済' : '視察'}</button>` : ''}
       ${canPick ? `<button data-pick="${p.id}">指名</button>` : ''}
     </div>
   </div>`;
 }
 
-export function renderDraft(el: HTMLElement): void {
+export function renderReinforce(el: HTMLElement): void {
   const w = app.world!;
-  const d = w.draft ?? startDraft(w);
+  const tabs = `<h1>補強</h1>
+    <div class="seg"><button class="${tab === 'draft' ? 'on' : ''}" data-tab="draft">ドラフト</button><button class="${tab === 'foreign' ? 'on' : ''}" data-tab="foreign">助っ人外国人</button><button class="${tab === 'scout' ? 'on' : ''}" data-tab="scout">スカウト配置</button></div>`;
+  if (tab !== 'draft') {
+    el.innerHTML = `${tabs}<div class="card"><p>${tab === 'foreign' ? '助っ人外国人の獲得' : '地域ごとのスカウトの配置'}は、第2段階で追加します。</p></div>`;
+    el.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab as typeof tab; app.refresh(); }));
+    return;
+  }
+  renderDraft(el, w, tabs);
+}
+
+function renderDraft(el: HTMLElement, w: World, tabs: string): void {
+  const d = w.draft && w.draft.year === w.season.year ? w.draft : ensureDraftCandidates(w);
   const me = w.userTeamId;
   const myTurn = (d.phase === 'round1' && d.round1Pending.includes(me)) || ((d.phase === 'regular' || d.phase === 'ikusei') && currentTeam(d) === me);
   const mine = d.picks.filter((x) => x.teamId === me);
@@ -57,8 +71,9 @@ export function renderDraft(el: HTMLElement): void {
   // ---- 状況の説明 ----
   let status = '';
   if (d.phase === 'scouting') {
-    status = `<p>候補を見比べ、気になる選手を<b>視察</b>すると、能力の幅が狭まります（残り${d.visitsLeft}回）。準備ができたら1位指名へ進みます。</p>
-      <button id="dr-begin" style="width:100%">1位指名へ進む</button>`;
+    const ready = !!w.season.postseason?.finished;
+    status = `<p>候補を見比べ、気になる選手を<b>視察</b>すると、能力の幅が狭まります。視察は<b>1か月に3回まで</b>、同じ選手は同じ月に1回までです（今月の残り${visitsLeftThisMonth(w)}回）。</p>
+      ${ready ? '<button id="dr-begin" style="width:100%">ドラフト会議を始める（1位指名へ）</button>' : '<p class="muted small">ドラフト会議はポストシーズンの後に行います。</p>'}`;
   } else if (d.phase === 'round1') {
     const lost = mine.length === 0 && d.log.length > 0;
     status = `<p><b>1位指名</b>：${lost ? '<span class="lose">抽選に外れました。</span>もう一度、' : ''}指名する選手の「指名」を押してください。全球団が同時に指名し、重なれば抽選です。</p>`;
@@ -103,18 +118,19 @@ export function renderDraft(el: HTMLElement): void {
 
   const logs = showAllLog ? d.log : d.log.slice(-8);
   el.innerHTML = `
-    <h1>ドラフト会議 ${d.year}</h1>
+    ${tabs}
+    <h2>ドラフト ${d.year}</h2>
     <div class="card">${status}</div>
     ${pickedList}
     ${d.log.length ? `<h2>指名の経過</h2><div class="card small">${logs.map((l) => `<div>${esc(l)}</div>`).join('')}
       ${d.log.length > 8 ? `<button class="sub" id="dr-log" style="margin-top:6px">${showAllLog ? '最近だけ表示' : `すべて表示（${d.log.length}件）`}</button>` : ''}</div>` : ''}
     ${d.phase !== 'done' ? `
     <h2>候補（${list.length}人）</h2>
-    <p class="muted small">能力はスカウト報告の幅です（本当の値はこの幅の中）。視察 残り${d.visitsLeft}回。</p>
+    <p class="muted small">能力はスカウト報告の幅です（本当の値はこの幅の中）。${d.phase === 'scouting' ? `今月の視察 残り${visitsLeftThisMonth(w)}回。` : ''}</p>
     ${seg('career', career, [['all', '全員'], ['highSchool', '高校'], ['college', '大学'], ['industrial', '社会人']])}
     ${seg('pos', pos, [['all', '全員'], ['P', '投手'], ['C', '捕手'], ['IF', '内野'], ['OF', '外野']])}
     ${seg('sort', sortKey, [['pot', '将来性順'], ['now', '即戦力順'], ['age', '若い順']])}
-    <div class="card">${list.slice(0, shown).map((p) => candidateRow(d, p, myTurn)).join('') || '<p class="muted">該当する候補はいません</p>'}
+    <div class="card">${list.slice(0, shown).map((p) => candidateRow(w, d, p, myTurn)).join('') || '<p class="muted">該当する候補はいません</p>'}
       ${list.length > shown ? `<button class="sub" id="dr-more" style="width:100%;margin-top:8px">もっと見る（残り${list.length - shown}人）</button>` : ''}</div>` : ''}
     ${d.phase === 'done' ? `<h2>各球団の1位</h2><div class="card small">${d.picks.filter((x) => x.round === 1 && !x.ikusei).map((x) => {
       const p = w.players.find((c) => c.id === x.playerId)!;
@@ -130,6 +146,7 @@ export function renderDraft(el: HTMLElement): void {
     app.refresh();
   });
   on('#dr-home', () => { app.screen = 'home'; app.refresh(); });
+  on('[data-tab]', (b) => { tab = b.dataset.tab as typeof tab; app.refresh(); });
   on('#dr-log', () => { showAllLog = !showAllLog; app.refresh(); });
   on('#dr-more', () => { shown += 40; app.refresh(); });
   on('[data-visit]', (b) => { const why = visit(w, Number(b.dataset.visit)); if (why) alert(why); app.refresh(); });

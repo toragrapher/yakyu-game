@@ -1,8 +1,9 @@
 // 画面全体の状態（今遊んでいる世界と、表示中の画面）
+import type { LockerState } from '../core/locker';
 import type { World } from '../core/season/types';
 import type { GameResult, GameTeam } from '../core/sim/types';
 
-export type ScreenName = 'home' | 'standings' | 'stats' | 'manage' | 'dev' | 'found' | 'draft';
+export type ScreenName = 'home' | 'records' | 'locker' | 'reinforce' | 'dev' | 'found';
 
 export const app = {
   world: null as World | null,
@@ -11,6 +12,8 @@ export const app = {
   lastGame: null as { result: GameResult; away: GameTeam; home: GameTeam; label?: string } | null,
   /** 進行中（シーズン終了まで など）なら true */
   busy: false,
+  /** ロッカールームの未確定の変更（確定・リセットまで残す） */
+  locker: null as LockerState | null,
   progress: 0,
   refresh: () => {},
 };

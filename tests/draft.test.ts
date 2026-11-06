@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_REGULAR_PICKS } from '../src/config/draft';
 import {
-  available, beginRound1, currentTeam, scoutReport, scoutWidth, startDraft, submitRound1, userPass, userPick, visit,
+  available, beginRound1, currentTeam, scoutReport, scoutWidth, startDraft, submitRound1, todayOf, userPass, userPick, visit,
 } from '../src/core/draft';
 import { overall, potentialOverall } from '../src/core/ratings';
-import { advanceDays, createWorld } from '../src/core/season/advance';
+import { advanceDay, advanceDays, createWorld } from '../src/core/season/advance';
 import { runPostseason } from '../src/core/season/postseason';
 import type { World } from '../src/core/season/types';
 
@@ -46,6 +46,25 @@ describe('ドラフト', () => {
     const before = scoutWidth(d, p.id);
     expect(visit(w, p.id)).toBeNull();
     expect(scoutWidth(d, p.id)).toBeLessThan(before);
+  });
+
+  it('視察は1か月に3回まで、同じ月に同じ選手は1回まで。月が変わると戻る。開幕から候補がいる', () => {
+    const w = createWorld(6, { teamCounts: [7, 6], games: null, interleague: { mode: 'period', games: 18 }, dh: [true, true], postseason: { teams: [3, 3], advantage: true } }, 2027);
+    const d = w.draft!;
+    expect(d.candidates.length).toBeGreaterThan(0);
+    const [a, b, c, e] = d.candidates;
+    expect(visit(w, a.id)).toBeNull();
+    expect(visit(w, a.id)).toContain('今月');
+    expect(visit(w, b.id)).toBeNull();
+    expect(visit(w, c.id)).toBeNull();
+    expect(visit(w, e.id)).toContain('3回');
+    // 次の月まで進める
+    const month = todayOf(w).slice(0, 7);
+    while (todayOf(w).slice(0, 7) === month) advanceDay(w);
+    expect(visit(w, a.id)).toBeNull();
+    expect(d.scout[a.id].visits).toBe(2);
+    // シーズン中はドラフト会議を始められない
+    expect(() => beginRound1(w)).toThrow();
   });
 
   it('全球団が1位を1人ずつ獲り、同じ選手を2球団が獲らない。最後に入団する', () => {

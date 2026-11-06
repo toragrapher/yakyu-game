@@ -2,7 +2,7 @@
 import {
   AI_EVAL_NOISE, AI_IKUSEI_PICKS_MAX, AI_REGULAR_PICKS, CANDIDATES_PER_TEAM, CAREER_MIX, DRAFT_POSITION_WEIGHTS,
   IKUSEI_BONUS, IKUSEI_SALARY, MAX_IKUSEI_PICKS, MAX_REGULAR_PICKS, PROSPECT_TIERS, REGION_SCOUT_POWER, ROOKIE_SALARY,
-  SCOUT_BASE_WIDTH, SCOUT_MIN_WIDTH, SCOUT_NARROW_RATE, SCOUT_VISITS_PER_YEAR, SIGNING_BONUS,
+  SCOUT_BASE_WIDTH, SCOUT_MIN_WIDTH, SCOUT_NARROW_RATE, SCOUT_VISITS_PER_MONTH, SIGNING_BONUS,
 } from '../config/draft';
 import { ROSTER_TEMPLATE } from '../config/generate';
 import { generatePlayer } from './generate/player';
@@ -25,7 +25,12 @@ function withRng<T>(w: World, fn: (rng: Rng) => T): T {
   return out;
 }
 
-/** ドラフトを始める（候補を作り、スカウトの準備をする） */
+/** その年のドラフト候補を用意する（開幕と同時に作り、シーズン中に視察できる） */
+export function ensureDraftCandidates(w: World): DraftState {
+  return startDraft(w);
+}
+
+/** ドラフト候補を作る（すでにその年の分があればそれを返す） */
 export function startDraft(w: World): DraftState {
   if (w.draft && w.draft.year === w.season.year) return w.draft;
   return withRng(w, (rng) => {
@@ -61,7 +66,7 @@ export function startDraft(w: World): DraftState {
       phase: 'scouting',
       candidates,
       scout,
-      visitsLeft: SCOUT_VISITS_PER_YEAR,
+      visitLog: {},
       picks: [],
       round1Pending: [],
       log: [],
@@ -121,13 +126,36 @@ export function scoutReport(d: DraftState, p: Player): ScoutReport {
   };
 }
 
-/** 視察する（幅が狭くなる） */
+/** 今の日付（シーズン中は次の試合日、ポストシーズン中はその日） */
+export function todayOf(w: World): string {
+  const s = w.season;
+  if (s.postseason) return s.postseason.date;
+  return s.schedule.days[Math.min(s.dayIndex, s.schedule.days.length - 1)].date;
+}
+
+/** 今月の視察の残り回数 */
+export function visitsLeftThisMonth(w: World): number {
+  const d = w.draft!;
+  const month = todayOf(w).slice(0, 7);
+  return SCOUT_VISITS_PER_MONTH - (d.visitLog[month]?.length ?? 0);
+}
+
+/** 今月すでに視察した候補か */
+export function visitedThisMonth(w: World, id: number): boolean {
+  return (w.draft!.visitLog[todayOf(w).slice(0, 7)] ?? []).includes(id);
+}
+
+/** 視察する（幅が狭くなる）。1か月に3回まで、同じ月に同じ選手は1回まで */
 export function visit(w: World, id: number): string | null {
   const d = w.draft!;
-  if (d.visitsLeft <= 0) return '今年の視察回数を使い切りました';
+  if (d.phase !== 'scouting') return 'ドラフト会議が始まったので、視察はできません';
   if (!d.candidates.some((p) => p.id === id)) return '候補にいない選手です';
+  const month = todayOf(w).slice(0, 7);
+  const log = (d.visitLog[month] ??= []);
+  if (log.length >= SCOUT_VISITS_PER_MONTH) return `今月の視察は${SCOUT_VISITS_PER_MONTH}回までです`;
+  if (log.includes(id)) return 'この選手は今月すでに視察しました';
+  log.push(id);
   d.scout[id].visits++;
-  d.visitsLeft--;
   return null;
 }
 
@@ -181,6 +209,7 @@ function addPick(w: World, teamId: number, p: Player, round: number, ikusei: boo
 /** 1位指名を始める */
 export function beginRound1(w: World): void {
   const d = w.draft!;
+  if (!w.season.postseason?.finished) throw new Error('ドラフト会議はポストシーズンの後です');
   d.phase = 'round1';
   d.round1Pending = w.teams.map((t) => t.id);
 }

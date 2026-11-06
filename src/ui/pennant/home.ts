@@ -18,6 +18,8 @@ import { resetWizard } from '../founding/wizard';
 import { logoSvg } from '../logo';
 import { activeSeries, advancePostseasonDay, startPostseason } from '../../core/season/postseason';
 import { renderPostseason } from './postseasonView';
+import { commitLocker } from '../../core/locker';
+import { todayOf } from '../../core/draft';
 
 function defaultConfig(): LeagueConfig {
   return {
@@ -60,10 +62,34 @@ function stepOneDay(): void {
   if (out?.userGame) app.lastGame = { result: out.userGame.result, away: out.userGame.away, home: out.userGame.home };
 }
 
+/**
+ * 進める前に、ロッカールームの未確定の変更を片付ける。
+ * 確定して進む／変更を捨てて進む／やめる を聞く。進めてよければ true
+ */
+function settleLocker(): boolean {
+  const w = app.world!;
+  const L = app.locker;
+  if (L?.dirty) {
+    if (confirm('ロッカールームに未確定の変更があります。\n確定して進みますか？\n（キャンセルを押すと、変更を捨てるかを聞きます）')) {
+      const why = commitLocker(w, L, todayOf(w));
+      if (why) {
+        alert(`確定できませんでした：${why}\nロッカールームで直してください。`);
+        return false;
+      }
+    } else if (!confirm('変更を捨てて進みますか？')) {
+      return false;
+    }
+  }
+  // 日が進むと一軍の顔ぶれが変わることがあるので、次に開くときに作り直す
+  app.locker = null;
+  return true;
+}
+
 /** 日数を指定して進める（途中で画面を更新し、固まらないようにする） */
 function run(days: number | 'end'): void {
   const w = app.world!;
   if (app.busy || w.season.finished) return;
+  if (!settleLocker()) return;
   const startDate = currentDate(w);
   app.busy = true;
   const total = days === 'end' ? w.season.schedule.days.length - w.season.dayIndex : days;
@@ -101,6 +127,7 @@ function pitcherLine(w: World, p: Player | null): string {
 function runPost(mode: 'day' | 'end'): void {
   const w = app.world!;
   if (app.busy) return;
+  if (!settleLocker()) return;
   if (!w.season.postseason) startPostseason(w);
   const step = () => {
     const out = advancePostseasonDay(w);
@@ -138,7 +165,7 @@ function postseasonPanel(w: World, myRank: number): string {
     return `<p><b>${champ.id === me ? '日本一になりました！' : `${esc(champ.name)}が日本一になりました`}</b></p>
       ${draftDone
         ? '<p class="muted small">ドラフト会議が終わりました。次は契約更改と年度終了です（ステップ9で作ります）。</p><button class="sub" id="go-draft" style="width:100%">ドラフトの結果を見る</button>'
-        : `<button id="go-draft" style="width:100%">ドラフト会議へ</button>`}`;
+        : `<button id="go-draft" style="width:100%">ドラフト会議へ（補強）</button>`}`;
   }
   const mine = activeSeries(w).find((x) => x.teams.includes(me));
   const info = mine
@@ -274,7 +301,7 @@ export function renderHome(el: HTMLElement): void {
   el.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) =>
     b.addEventListener('click', () => run(b.dataset.run === 'end' ? 'end' : Number(b.dataset.run))),
   );
-  el.querySelector('#go-draft')?.addEventListener('click', () => { app.screen = 'draft'; app.refresh(); });
+  el.querySelector('#go-draft')?.addEventListener('click', () => { app.screen = 'reinforce'; app.refresh(); });
   el.querySelector('#ps-start')?.addEventListener('click', () => { startPostseason(w); app.refresh(); });
   el.querySelectorAll<HTMLButtonElement>('[data-ps]').forEach((b) => b.addEventListener('click', () => runPost(b.dataset.ps as 'day' | 'end')));
   el.querySelector('#pick-team')?.addEventListener('change', (e) => {

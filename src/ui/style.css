@@ -104,3 +104,31 @@ details summary { cursor: pointer; padding: 4px 0; }
 .ps-team .grow { flex: 1; min-width: 0; }
 .ps-wins { font-size: 20px; min-width: 1.2em; text-align: right; }
 .ps-marks span { margin-right: 2px; }
+
+/* ロッカールーム */
+.nav button { position: relative; }
+.nav-dot { position: absolute; top: 6px; right: 28%; width: 8px; height: 8px; border-radius: 50%; background: #e0245e; }
+.lk-bar { position: sticky; top: 0; z-index: 5; }
+.lk-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lk-head { font-size: 12px; font-weight: 700; margin: 8px 0 4px; }
+.lk-card { display: flex; align-items: center; gap: 4px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 4px 5px; margin-bottom: 4px; min-height: 40px;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; cursor: grab; }
+.lk-card.lk-sel { outline: 2px solid var(--accent); }
+.lk-card.lk-over { outline: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--card)); }
+.lk-card.lk-lifted { opacity: .35; }
+.lk-card.lk-ikusei { opacity: .55; cursor: default; }
+.lk-card.lk-empty { border-style: dashed; justify-content: center; cursor: pointer; }
+.lk-ghost { position: fixed; z-index: 100; pointer-events: none; box-shadow: 0 6px 16px rgba(0,0,0,.35); transform: scale(1.04); }
+.lk-main { flex: 1; min-width: 0; }
+.lk-name { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lk-given { font-weight: 400; font-size: 11px; margin-left: 2px; color: var(--muted); }
+.lk-sub { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.lk-sub b { color: var(--text); }
+.lk-sub .fat { width: 22px; }
+.lk-order { font-size: 11px; font-weight: 700; min-width: 1.2em; text-align: center; }
+.lk-pos { -webkit-appearance: none; appearance: none; font-size: 13px; font-weight: 700; padding: 0; min-height: 30px; width: 2em; text-align: center; text-align-last: center; background: var(--line); border: 0; border-radius: 6px; color: var(--text); }
+.lk-area { border: 1px dashed var(--line); border-radius: 8px; padding: 8px 4px; text-align: center; font-size: 11px; color: var(--muted); margin-bottom: 4px; cursor: pointer; }
+.lk-area.lk-over, .lk-area.lk-sel { border-color: var(--accent); color: var(--accent); }
+.lk-detail { border-left: 4px solid var(--accent); }
+button:disabled { opacity: .4; }
+.lk-bar button { min-height: 36px; padding: 6px 12px; font-size: 14px; }

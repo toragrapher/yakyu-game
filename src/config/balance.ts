@@ -165,8 +165,8 @@ export const WEATHER = {
   nightShift: -3,
   tempSd: 3,
   domeTemp: 22,
-  hrPerDegree: 0.006, // 気温1度ごとの本塁打の増減（20度基準）
+  hrPerDegree: 0.004, // 気温1度ごとの本塁打の増減（20度基準）
   maxWind: 7, // 風速の上限（m/秒、海沿いは1.5倍）
   seasideFactor: 1.5,
-  hrPerWind: 0.025, // 追い風1m/秒ごとの本塁打の増加（向かい風は減少）
+  hrPerWind: 0.02, // 追い風1m/秒ごとの本塁打の増加（向かい風は減少）
 };

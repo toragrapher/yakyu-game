@@ -8,6 +8,7 @@ import { simulateGame } from '../sim/game';
 import type { GameResult, GameTeam } from '../sim/types';
 import { weatherLabel } from '../sim/weather';
 import { generateAiTeams } from '../generate/team';
+import { ensureDraftCandidates } from '../draft';
 import type { LeagueConfig, Player, Team } from '../types';
 import { daysBetween, monthOf } from './dates';
 import { selectFirstTeam } from './firstTeam';
@@ -69,7 +70,7 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
   const user = teams.find((t) => t.id === userTeamId);
   if (user) user.isUser = true;
   const season = newSeason(rng, teams, players, config, year);
-  return {
+  const w: World = {
     seed,
     rngState: rng.state,
     config,
@@ -81,6 +82,9 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
     quickStart: true,
     season,
   };
+  // その年のドラフト候補（シーズン中に視察できる）
+  ensureDraftCandidates(w);
+  return w;
 }
 
 /** 日をまたぐ処理：疲労の回復、調子の波、登板記録のずれ、登録日数 */

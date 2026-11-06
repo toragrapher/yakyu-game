@@ -154,7 +154,8 @@ export interface DraftState {
   phase: 'scouting' | 'round1' | 'regular' | 'ikusei' | 'done';
   candidates: Player[];
   scout: Record<number, ScoutInfo>;
-  visitsLeft: number;
+  /** 月ごとの視察の記録（"2027-05" → 視察した候補のID） */
+  visitLog: Record<string, number[]>;
   picks: DraftPick[];
   /** 1位指名で、まだ交渉権が決まっていない球団 */
   round1Pending: number[];

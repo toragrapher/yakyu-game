@@ -12,6 +12,7 @@ import { overall, potentialOverall } from './ratings';
 import { Rng } from './rng';
 import { salaryFor } from './salary';
 import { newSeason } from './season/advance';
+import { ensureDraftCandidates } from './draft';
 import type { World } from './season/types';
 import type { LeagueConfig, MainPos, PitcherRole, Player, Team } from './types';
 
@@ -243,7 +244,7 @@ export function finishFounding(f: Founding): World {
   const rng = new Rng(0);
   rng.state = f.rngState;
   const season = newSeason(rng, f.teams, f.players, f.config, f.year);
-  return {
+  const w: World = {
     seed: f.seed,
     rngState: rng.state,
     config: f.config,
@@ -254,4 +255,7 @@ export function finishFounding(f: Founding): World {
     userTeamId: user.id,
     season,
   };
+  // その年のドラフト候補（シーズン中に視察できる）
+  ensureDraftCandidates(w);
+  return w;
 }

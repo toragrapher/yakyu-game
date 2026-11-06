@@ -25,8 +25,8 @@ export const DRAFT_POSITION_WEIGHTS: readonly [string, number][] = [
   ['P:SP', 30], ['P:RP', 18], ['C', 8], ['1B', 4], ['2B', 6], ['3B', 5], ['SS', 8], ['OF', 21],
 ];
 
-/** スカウト：年間の視察回数と、能力の幅（ポイント）。視察するほど狭くなる */
-export const SCOUT_VISITS_PER_YEAR = 20;
+/** スカウト：1か月の視察回数（同じ月に同じ選手は1回まで）と、能力の幅（ポイント）。視察するほど狭くなる */
+export const SCOUT_VISITS_PER_MONTH = 3;
 export const SCOUT_BASE_WIDTH = 28;
 export const SCOUT_MIN_WIDTH = 4;
 /** 視察1回で幅が何割になるか */
