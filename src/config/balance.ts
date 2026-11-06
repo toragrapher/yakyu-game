@@ -36,7 +36,7 @@ export const ELASTICITY = {
   K: { contact: -0.18, power: 0.06, velocity: 0.16, breaking: 0.1 },
   BB: { contact: 0.05, power: 0.08, control: -0.25 },
   HBP: { control: -0.15 },
-  S: { contact: 0.18, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
+  S: { contact: 0.15, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
   D: { contact: 0.08, power: 0.06, speed: 0.03, breaking: -0.07, defense: -0.04 },
   T: { power: 0.05, speed: 0.3, defense: -0.04 },
   HR: { contact: 0.03, power: 0.9, velocity: -0.06, breaking: -0.06, control: -0.05 },

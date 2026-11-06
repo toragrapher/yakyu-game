@@ -12,7 +12,7 @@ import { avg, era, holdPoints, ipLabel, ops, rate3 } from '../core/season/stats'
 import type { LineupPos } from '../core/sim/types';
 import type { OffenseTactic, PitchingTactic, Player } from '../core/types';
 import { app } from './app';
-import { abilityLine, conditionIcon, esc, fatigueBar } from './common';
+import { abilityLine, conditionIcon, esc, fatigueBar, rankBadge } from './common';
 import { attachDnd } from './dnd';
 
 let tab: 'fielders' | 'pitchers' | 'tactics' = 'fielders';
@@ -57,13 +57,30 @@ function statShort(p: Player): string {
   return b.pa ? `${rate3(avg(b))} ${b.hr}本 ${b.rbi}点 OPS${rate3(ops(b))}` : '';
 }
 
+/** カードの色の区分：捕手（青）・内野（黄）・外野（緑）・先発（赤）・中継ぎ（赤ピンク）・抑え（ピンク） */
+function colorClass(p: Player): string {
+  if (p.mainPos === 'P') return p.role === 'SP' ? 'lk-sp' : p.role === 'CL' ? 'lk-cl' : 'lk-rp';
+  if (p.mainPos === 'C') return 'lk-c';
+  if (p.mainPos === 'OF') return 'lk-of';
+  return 'lk-if';
+}
+
+/** 4つの能力のランク（2行×2列） */
+function miniAbilities(p: Player): string {
+  const items: [string, number][] = p.pitch
+    ? [['速', p.pitch.velocity], ['制', p.pitch.control], ['変', p.pitch.breaking], ['体', p.pitch.stamina]]
+    : [['巧', p.bat.contact], ['長', p.bat.power], ['走', p.bat.speed], ['守', p.bat.defense]];
+  return `<div class="lk-abil">${items.map(([l, v]) => `<span><i>${l}</i>${rankBadge(v)}</span>`).join('')}</div>`;
+}
+
 /** 小さなカード（1人1行） */
 function card(p: Player, slot: string, extra = '', draggable = true): string {
   const role = p.mainPos === 'P' ? ROLE_LABEL[p.role!].slice(0, 2) : POS_LABEL[p.mainPos];
-  return `<div class="lk-card ${selected === slot ? 'lk-sel' : ''} ${p.contract === 'ikusei' ? 'lk-ikusei' : ''}" data-slot="${slot}" ${draggable ? 'data-drag' : ''}>
+  return `<div class="lk-card ${colorClass(p)} ${selected === slot ? 'lk-sel' : ''} ${p.contract === 'ikusei' ? 'lk-ikusei' : ''}" data-slot="${slot}" ${draggable ? 'data-drag' : ''}>
     ${extra}
     <div class="lk-main"><div class="lk-name">${esc(p.familyName)}<span class="lk-given">${esc(p.givenName.slice(0, 2))}</span></div>
     <div class="lk-sub">${role} <b>${Math.round(overall(p))}</b> ${conditionIcon(p)} ${fatigueBar(p)}</div></div>
+    ${miniAbilities(p)}
   </div>`;
 }
 

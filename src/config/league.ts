@@ -3,8 +3,8 @@
 /** リーグ名（0番目・1番目） */
 export const LEAGUE_NAMES: readonly [string, string] = ['オーシャンリーグ', 'マウンテンリーグ'];
 
-/** 各リーグの球団数の初期値（既存12＋自球団。自球団はオーシャンリーグに入る） */
-export const DEFAULT_TEAM_COUNTS: readonly [number, number] = [7, 6];
+/** 各リーグの球団数の初期値（自球団を含めて6球団ずつ。既存11＋自球団） */
+export const DEFAULT_TEAM_COUNTS: readonly [number, number] = [6, 6];
 /** 試合数の初期値 */
 export const DEFAULT_GAMES = 143;
 
@@ -23,7 +23,7 @@ export const MAX_TEAMS_PER_LEAGUE = 12;
 
 /** 日程：開幕は3月の最終金曜日。火〜木と金〜日の2カードで1週間、月曜は休み */
 export const OPENING_MONTH = 3;
-/** 試合数が「自動」のとき、レギュラーシーズンをこの日までに終える（月-日）。初期設定の7＋6球団で142試合が入る日付（仮置き） */
+/** 試合数が「自動」のとき、レギュラーシーズンをこの日までに終える（月-日）。奇数の球団数のリーグ（7球団など）でも140試合前後が入る日付（仮置き） */
 export const SEASON_END = '10-08';
 /** 期間集中型の交流戦を始める時期（リーグ戦全体のうち、この割合を終えた後） */
 export const INTERLEAGUE_START_RATIO = 0.3;
