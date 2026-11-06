@@ -1,5 +1,5 @@
 // 画面で共通に使う部品
-import { rankOf } from '../core/ratings';
+import { overall, potentialOverall, rankOf } from '../core/ratings';
 import type { Player, Team } from '../core/types';
 import { POS_LABEL, ROLE_LABEL } from '../core/labels';
 
@@ -29,7 +29,16 @@ export function posShort(p: Player): string {
   return p.mainPos === 'P' ? ROLE_LABEL[p.role!] : POS_LABEL[p.mainPos];
 }
 
+/** 総合評価の数字（今の力と、能力上限から見た将来性） */
+export function overallBadge(p: Player): string {
+  return `<span class="ovr" title="総合評価（今／将来性）">総合<b>${Math.round(overall(p))}</b><span class="muted">/${Math.round(potentialOverall(p))}</span></span>`;
+}
+
 export function abilityLine(p: Player): string {
+  return `${overallBadge(p)} ${abilityOnly(p)}`;
+}
+
+function abilityOnly(p: Player): string {
   if (p.pitch) {
     const a = p.pitch;
     return `速${rankBadge(a.velocity)}制${rankBadge(a.control)}変${rankBadge(a.breaking)}体${rankBadge(a.stamina)}`;

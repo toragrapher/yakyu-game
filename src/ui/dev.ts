@@ -3,7 +3,7 @@ import { LEAGUE_NAMES } from '../config/league';
 import { generateAiTeams } from '../core/generate/team';
 import { ORDER_FIT_LABEL, handLabel, playerTag, salaryLabel } from '../core/labels';
 import { NameRegistry } from '../core/names';
-import { overall, rankOf } from '../core/ratings';
+import { overall, potentialOverall, rankOf } from '../core/ratings';
 import { Rng } from '../core/rng';
 import { simulateGame } from '../core/sim/game';
 import { buildGameTeam } from '../core/sim/lineup';
@@ -75,6 +75,11 @@ const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 const r = (v: number) => `<span class="rank rank-${rankOf(v)}">${rankOf(v)}</span>`;
 
 function abilities(p: Player): string {
+  const ovr = `総合<b>${Math.round(overall(p))}</b>/${Math.round(potentialOverall(p))} `;
+  return ovr + abilityRanks(p);
+}
+
+function abilityRanks(p: Player): string {
   if (p.pitch) {
     const a = p.pitch;
     return `速球${r(a.velocity)} 制球${r(a.control)} 変化${r(a.breaking)} 体力${r(a.stamina)}`;

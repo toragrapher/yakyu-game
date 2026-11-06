@@ -35,6 +35,9 @@ interface WizardState {
   sortKey: SortKey;
   /** true＝高い順（年齢は上の順）、false＝低い順 */
   desc: boolean;
+  /** 第2条件（1つ目が同じ値のときに使う） */
+  sortKey2: SortKey | 'none';
+  desc2: boolean;
 }
 
 type SortKey = 'value' | 'now' | 'pot' | 'age' | 'contact' | 'power' | 'speed' | 'defense' | 'velocity' | 'control' | 'breaking' | 'stamina';
@@ -85,6 +88,8 @@ function initial(): WizardState {
     shown: 40,
     sortKey: 'value',
     desc: true,
+    sortKey2: 'none',
+    desc2: true,
   };
 }
 
@@ -240,13 +245,20 @@ function stepPick(): string {
     if (ws.filter === 'veteran') return !isRookieCandidate(f, p);
     return groupOf(p) === ws.filter;
   });
-  // 並べ替え：対象外の選手は、向きに関係なく一番下
-  list = list.sort((a, b) => {
-    const va = sortValue(a, ws.sortKey);
-    const vb = sortValue(b, ws.sortKey);
+  // 並べ替え：第1条件 → 第2条件 → おすすめ順。対象外の選手は、向きに関係なく下へ
+  const cmp = (a: Player, b: Player, key: SortKey, desc: boolean) => {
+    const va = sortValue(a, key);
+    const vb = sortValue(b, key);
     if (va == null || vb == null) return va == null && vb == null ? 0 : va == null ? 1 : -1;
-    return (ws.desc ? vb - va : va - vb) || sortValue(b, 'value')! - sortValue(a, 'value')!;
-  });
+    // 総合評価などは小数なので、表示と同じ整数で比べる（同じ数字なら第2条件へ）
+    const ra = Math.round(va);
+    const rb = Math.round(vb);
+    return desc ? rb - ra : ra - rb;
+  };
+  list = list.sort((a, b) =>
+    cmp(a, b, ws.sortKey, ws.desc)
+    || (ws.sortKey2 !== 'none' ? cmp(a, b, ws.sortKey2, ws.desc2) : 0)
+    || sortValue(b, 'value')! - sortValue(a, 'value')!);
   const rookies = f.picks.filter((id) => isRookieCandidate(f, f.players.find((p) => p.id === id)!)).length;
   const counter = f.method === 'expansion'
     ? `指名 ${f.picks.length}/${EXPANSION_PICKS}人（1球団${expansionMaxPerTeam(f)}人まで）`
@@ -258,6 +270,10 @@ function stepPick(): string {
     <div class="row" style="margin-bottom:8px">
       <label>並び順 <select id="pk-sort">${SORTS.map(([k, l]) => opt(k, l, ws.sortKey)).join('')}</select></label>
       <div class="seg" style="margin:0;flex:1"><button class="${ws.desc ? 'on' : ''}" data-desc="1">${ws.sortKey === 'age' ? '年上から' : '高い順'}</button><button class="${ws.desc ? '' : 'on'}" data-desc="0">${ws.sortKey === 'age' ? '若い順' : '低い順'}</button></div>
+    </div>
+    <div class="row" style="margin-bottom:8px">
+      <label>第2条件 <select id="pk-sort2">${opt<string>('none', 'なし', ws.sortKey2)}${SORTS.filter(([k]) => k !== ws.sortKey).map(([k, l]) => opt<string>(k, l, ws.sortKey2)).join('')}</select></label>
+      ${ws.sortKey2 !== 'none' ? `<div class="seg" style="margin:0;flex:1"><button class="${ws.desc2 ? 'on' : ''}" data-desc2="1">${ws.sortKey2 === 'age' ? '年上から' : '高い順'}</button><button class="${ws.desc2 ? '' : 'on'}" data-desc2="0">${ws.sortKey2 === 'age' ? '若い順' : '低い順'}</button></div>` : ''}
     </div>
     <div class="teamtabs" style="margin-bottom:8px">${filters.map(([k, l]) => `<button class="${ws.filter === k ? '' : 'sub'}" data-filter="${k}">${l}</button>`).join('')}</div>
     <div class="card">${list.slice(0, ws.shown).map((p) => candidateRow(f, p)).join('') || '<p class="muted">該当する選手はいません</p>'}
@@ -395,10 +411,18 @@ export function renderWizard(el: HTMLElement): void {
       ws.sortKey = (e.target as HTMLSelectElement).value as SortKey;
       // 年齢は若い順、それ以外は高い順から
       ws.desc = ws.sortKey !== 'age';
+      if (ws.sortKey2 === ws.sortKey) ws.sortKey2 = 'none';
       ws.shown = 40;
       app.refresh();
     });
     el.querySelectorAll<HTMLButtonElement>('[data-desc]').forEach((b) => b.addEventListener('click', () => { ws.desc = b.dataset.desc === '1'; ws.shown = 40; app.refresh(); }));
+    $('pk-sort2')!.addEventListener('change', (e) => {
+      ws.sortKey2 = (e.target as HTMLSelectElement).value as SortKey | 'none';
+      ws.desc2 = ws.sortKey2 !== 'age';
+      ws.shown = 40;
+      app.refresh();
+    });
+    el.querySelectorAll<HTMLButtonElement>('[data-desc2]').forEach((b) => b.addEventListener('click', () => { ws.desc2 = b.dataset.desc2 === '1'; ws.shown = 40; app.refresh(); }));
     $('pk-auto')!.addEventListener('click', () => { autoPick(f); app.refresh(); });
     $('wz-next')!.addEventListener('click', () => go(5));
     $('wz-back')!.addEventListener('click', () => go(3));
