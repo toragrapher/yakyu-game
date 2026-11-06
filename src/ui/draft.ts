@@ -1,0 +1,147 @@
+// ドラフト会議の画面：候補一覧（スカウト報告の幅）→ 視察 → 1位指名（抽選）→ 2位以降 → 育成 → 結果
+import { MAX_IKUSEI_PICKS, MAX_REGULAR_PICKS } from '../config/draft';
+import {
+  available, beginRound1, currentTeam, scoutReport, startDraft, submitRound1, userPass, userPick, visit,
+} from '../core/draft';
+import { fullName, POS_LABEL, ROLE_LABEL } from '../core/labels';
+import { rankOf } from '../core/ratings';
+import type { DraftState } from '../core/season/types';
+import type { Player } from '../core/types';
+import { app } from './app';
+import { esc, teamChip } from './common';
+
+const CAREER_LABEL = { highSchool: '高校', college: '大学', industrial: '社会人' } as const;
+const ABIL_LABEL: Record<string, string> = { contact: '巧', power: '長', speed: '走', defense: '守', velocity: '速', control: '制', breaking: '変', stamina: '体' };
+
+let career: 'all' | 'highSchool' | 'college' | 'industrial' = 'all';
+let pos: 'all' | 'P' | 'C' | 'IF' | 'OF' = 'all';
+let sortKey: 'pot' | 'now' | 'age' = 'pot';
+let shown = 40;
+let showAllLog = false;
+
+/** ランクの幅（例：「C〜A」。同じなら「B」） */
+function rankRange([lo, hi]: [number, number]): string {
+  const a = rankOf(lo);
+  const b = rankOf(hi);
+  return a === b ? a : `${a}〜${b}`;
+}
+
+function rankRangeBadge(r: [number, number]): string {
+  return `<span class="rank rank-${rankOf((r[0] + r[1]) / 2)}">${rankRange(r)}</span>`;
+}
+
+function candidateRow(d: DraftState, p: Player, canPick: boolean): string {
+  const rep = scoutReport(d, p);
+  const v = d.scout[p.id]?.visits ?? 0;
+  const posL = p.mainPos === 'P' ? ROLE_LABEL[p.role!] : POS_LABEL[p.mainPos];
+  return `<div class="prow">
+    <div class="grow">
+      <div><b>${esc(fullName(p))}</b> <span class="muted small">${posL}｜${CAREER_LABEL[p.career]} ${p.age}歳｜${esc(p.birthPref)}</span></div>
+      <div class="abil">即${rankRangeBadge(rep.now)} 将${rankRangeBadge(rep.pot)}　${rep.abilities.map((a) => `${ABIL_LABEL[a.key]}${rankRangeBadge(a.range)}`).join('')}</div>
+      <div class="muted small">視察 ${v}回</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:4px">
+      <button class="sub" data-visit="${p.id}" ${d.visitsLeft <= 0 ? 'disabled' : ''}>視察</button>
+      ${canPick ? `<button data-pick="${p.id}">指名</button>` : ''}
+    </div>
+  </div>`;
+}
+
+export function renderDraft(el: HTMLElement): void {
+  const w = app.world!;
+  const d = w.draft ?? startDraft(w);
+  const me = w.userTeamId;
+  const myTurn = (d.phase === 'round1' && d.round1Pending.includes(me)) || ((d.phase === 'regular' || d.phase === 'ikusei') && currentTeam(d) === me);
+  const mine = d.picks.filter((x) => x.teamId === me);
+
+  // ---- 状況の説明 ----
+  let status = '';
+  if (d.phase === 'scouting') {
+    status = `<p>候補を見比べ、気になる選手を<b>視察</b>すると、能力の幅が狭まります（残り${d.visitsLeft}回）。準備ができたら1位指名へ進みます。</p>
+      <button id="dr-begin" style="width:100%">1位指名へ進む</button>`;
+  } else if (d.phase === 'round1') {
+    const lost = mine.length === 0 && d.log.length > 0;
+    status = `<p><b>1位指名</b>：${lost ? '<span class="lose">抽選に外れました。</span>もう一度、' : ''}指名する選手の「指名」を押してください。全球団が同時に指名し、重なれば抽選です。</p>`;
+  } else if (d.phase === 'regular' || d.phase === 'ikusei') {
+    const ik = d.phase === 'ikusei';
+    const count = mine.filter((x) => x.ikusei === ik).length;
+    status = `<p><b>${ik ? `育成ドラフト ${d.round}巡目` : `${d.round}位指名`}</b>　自球団の番です（${ik ? '育成' : '支配下'} ${count}/${ik ? MAX_IKUSEI_PICKS : MAX_REGULAR_PICKS}人）。</p>
+      <button class="sub" id="dr-pass" style="width:100%">${ik ? '育成の指名を終える' : '支配下の指名を終える（育成ドラフトへ）'}</button>`;
+  } else {
+    status = `<p><b>ドラフト会議が終わりました。</b>指名した選手は入団しました。</p>
+      <button id="dr-home" style="width:100%">ホームへ</button>`;
+  }
+
+  // ---- 自球団の指名 ----
+  const pickedList = mine.length
+    ? `<h2>自球団の指名</h2><div class="card"><table class="box"><tr><th class="tl">順位</th><th class="tl">選手</th><th>契約金</th><th>年俸</th></tr>
+      ${mine.map((x) => {
+        const p = d.candidates.find((c) => c.id === x.playerId) ?? w.players.find((c) => c.id === x.playerId)!;
+        const posL = p.mainPos === 'P' ? ROLE_LABEL[p.role!] : POS_LABEL[p.mainPos];
+        return `<tr><td class="tl">${x.ikusei ? '育成' : ''}${x.round}位</td><td class="tl">${esc(fullName(p))} <span class="muted small">${posL}・${CAREER_LABEL[p.career]}</span></td><td>${x.bonus.toLocaleString()}万</td><td>${x.salary.toLocaleString()}万</td></tr>`;
+      }).join('')}</table>
+      <p class="muted small">契約金の合計 ${mine.reduce((s, x) => s + x.bonus, 0).toLocaleString()}万円（残高からの支払いはステップ9で組み込みます）</p></div>`
+    : '';
+
+  // ---- 候補一覧 ----
+  let list = d.phase === 'done' ? [] : available(d);
+  list = list.filter((p) => {
+    if (career !== 'all' && p.career !== career) return false;
+    if (pos === 'all') return true;
+    const g = p.mainPos === 'P' ? 'P' : p.mainPos === 'C' ? 'C' : p.mainPos === 'OF' ? 'OF' : 'IF';
+    return g === pos;
+  });
+  const mid = (r: [number, number]) => (r[0] + r[1]) / 2;
+  list.sort((a, b) => {
+    if (sortKey === 'age') return a.age - b.age;
+    const ra = scoutReport(d, a);
+    const rb = scoutReport(d, b);
+    return sortKey === 'now' ? mid(rb.now) - mid(ra.now) : mid(rb.pot) - mid(ra.pot);
+  });
+  const seg = <T extends string>(name: string, cur: T, items: [T, string][]) =>
+    `<div class="seg">${items.map(([k, l]) => `<button class="${cur === k ? 'on' : ''}" data-${name}="${k}">${l}</button>`).join('')}</div>`;
+
+  const logs = showAllLog ? d.log : d.log.slice(-8);
+  el.innerHTML = `
+    <h1>ドラフト会議 ${d.year}</h1>
+    <div class="card">${status}</div>
+    ${pickedList}
+    ${d.log.length ? `<h2>指名の経過</h2><div class="card small">${logs.map((l) => `<div>${esc(l)}</div>`).join('')}
+      ${d.log.length > 8 ? `<button class="sub" id="dr-log" style="margin-top:6px">${showAllLog ? '最近だけ表示' : `すべて表示（${d.log.length}件）`}</button>` : ''}</div>` : ''}
+    ${d.phase !== 'done' ? `
+    <h2>候補（${list.length}人）</h2>
+    <p class="muted small">能力はスカウト報告の幅です（本当の値はこの幅の中）。視察 残り${d.visitsLeft}回。</p>
+    ${seg('career', career, [['all', '全員'], ['highSchool', '高校'], ['college', '大学'], ['industrial', '社会人']])}
+    ${seg('pos', pos, [['all', '全員'], ['P', '投手'], ['C', '捕手'], ['IF', '内野'], ['OF', '外野']])}
+    ${seg('sort', sortKey, [['pot', '将来性順'], ['now', '即戦力順'], ['age', '若い順']])}
+    <div class="card">${list.slice(0, shown).map((p) => candidateRow(d, p, myTurn)).join('') || '<p class="muted">該当する候補はいません</p>'}
+      ${list.length > shown ? `<button class="sub" id="dr-more" style="width:100%;margin-top:8px">もっと見る（残り${list.length - shown}人）</button>` : ''}</div>` : ''}
+    ${d.phase === 'done' ? `<h2>各球団の1位</h2><div class="card small">${d.picks.filter((x) => x.round === 1 && !x.ikusei).map((x) => {
+      const p = w.players.find((c) => c.id === x.playerId)!;
+      return `<div>${teamChip(w.teams.find((t) => t.id === x.teamId))} ${esc(fullName(p))}</div>`;
+    }).join('')}</div>` : ''}
+  `;
+
+  const on = (sel: string, fn: (b: HTMLElement) => void) => el.querySelectorAll<HTMLElement>(sel).forEach((b) => b.addEventListener('click', () => fn(b)));
+  on('#dr-begin', () => { beginRound1(w); app.refresh(); });
+  on('#dr-pass', () => {
+    if (!confirm(d.phase === 'ikusei' ? '育成の指名を終えますか？' : '支配下の指名を終えますか？（育成ドラフトに進みます）')) return;
+    userPass(w);
+    app.refresh();
+  });
+  on('#dr-home', () => { app.screen = 'home'; app.refresh(); });
+  on('#dr-log', () => { showAllLog = !showAllLog; app.refresh(); });
+  on('#dr-more', () => { shown += 40; app.refresh(); });
+  on('[data-visit]', (b) => { const why = visit(w, Number(b.dataset.visit)); if (why) alert(why); app.refresh(); });
+  on('[data-pick]', (b) => {
+    const id = Number(b.dataset.pick);
+    const p = d.candidates.find((c) => c.id === id)!;
+    if (!confirm(`${fullName(p)}を指名しますか？`)) return;
+    const why = d.phase === 'round1' ? submitRound1(w, id) : userPick(w, id);
+    if (why) alert(why);
+    app.refresh();
+  });
+  on('[data-career]', (b) => { career = b.dataset.career as typeof career; shown = 40; app.refresh(); });
+  on('[data-pos]', (b) => { pos = b.dataset.pos as typeof pos; shown = 40; app.refresh(); });
+  on('[data-sort]', (b) => { sortKey = b.dataset.sort as typeof sortKey; shown = 40; app.refresh(); });
+}

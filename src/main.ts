@@ -2,6 +2,7 @@
 import { app, type ScreenName } from './ui/app';
 import { mountDev } from './ui/dev';
 import { renderWizard } from './ui/founding/wizard';
+import { renderDraft } from './ui/draft';
 import { renderHome } from './ui/pennant/home';
 import { renderManage } from './ui/pennant/manage';
 import { renderStandings } from './ui/pennant/standings';
@@ -44,6 +45,7 @@ function refresh(): void {
   else if (app.screen === 'stats') renderStats(screen);
   else if (app.screen === 'manage') renderManage(screen);
   else if (app.screen === 'found') renderWizard(screen);
+  else if (app.screen === 'draft') renderDraft(screen);
   else mountDev(screen);
   window.scrollTo(0, changed ? 0 : y);
 }

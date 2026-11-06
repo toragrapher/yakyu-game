@@ -134,8 +134,11 @@ function postseasonPanel(w: World, myRank: number): string {
   }
   if (ps.finished) {
     const champ = w.teams.find((t) => t.id === ps.championId)!;
+    const draftDone = w.draft?.year === w.season.year && w.draft.phase === 'done';
     return `<p><b>${champ.id === me ? '日本一になりました！' : `${esc(champ.name)}が日本一になりました`}</b></p>
-      <p class="muted small">次はドラフトです（ステップ8で作ります）。</p>`;
+      ${draftDone
+        ? '<p class="muted small">ドラフト会議が終わりました。次は契約更改と年度終了です（ステップ9で作ります）。</p><button class="sub" id="go-draft" style="width:100%">ドラフトの結果を見る</button>'
+        : `<button id="go-draft" style="width:100%">ドラフト会議へ</button>`}`;
   }
   const mine = activeSeries(w).find((x) => x.teams.includes(me));
   const info = mine
@@ -271,6 +274,7 @@ export function renderHome(el: HTMLElement): void {
   el.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) =>
     b.addEventListener('click', () => run(b.dataset.run === 'end' ? 'end' : Number(b.dataset.run))),
   );
+  el.querySelector('#go-draft')?.addEventListener('click', () => { app.screen = 'draft'; app.refresh(); });
   el.querySelector('#ps-start')?.addEventListener('click', () => { startPostseason(w); app.refresh(); });
   el.querySelectorAll<HTMLButtonElement>('[data-ps]').forEach((b) => b.addEventListener('click', () => runPost(b.dataset.ps as 'day' | 'end')));
   el.querySelector('#pick-team')?.addEventListener('change', (e) => {

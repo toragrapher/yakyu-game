@@ -2,7 +2,7 @@
 import type { World } from '../core/season/types';
 import type { GameResult, GameTeam } from '../core/sim/types';
 
-export type ScreenName = 'home' | 'standings' | 'stats' | 'manage' | 'dev' | 'found';
+export type ScreenName = 'home' | 'standings' | 'stats' | 'manage' | 'dev' | 'found' | 'draft';
 
 export const app = {
   world: null as World | null,

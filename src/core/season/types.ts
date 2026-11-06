@@ -133,6 +133,43 @@ export interface SeasonState {
   postseason: PostseasonState | null;
 }
 
+/** ドラフトの候補ごとのスカウト情報 */
+export interface ScoutInfo {
+  visits: number;
+  /** 能力ごとの「本当の値が幅のどこにあるか」（0〜1。幅を作るときに使う） */
+  offsets: Record<string, number>;
+}
+
+export interface DraftPick {
+  round: number; // 1〜。育成は ikusei=true
+  ikusei: boolean;
+  teamId: number;
+  playerId: number;
+  bonus: number; // 契約金（万円）
+  salary: number;
+}
+
+export interface DraftState {
+  year: number;
+  phase: 'scouting' | 'round1' | 'regular' | 'ikusei' | 'done';
+  candidates: Player[];
+  scout: Record<number, ScoutInfo>;
+  visitsLeft: number;
+  picks: DraftPick[];
+  /** 1位指名で、まだ交渉権が決まっていない球団 */
+  round1Pending: number[];
+  /** 抽選などの経過（画面表示用） */
+  log: string[];
+  /** 2位以降・育成の順番と、今の位置 */
+  order: number[];
+  turn: number;
+  round: number;
+  /** 指名を終えた球団（支配下・育成それぞれ） */
+  passed: number[];
+  /** AI球団の指名数の目標 [支配下, 育成] */
+  aiTargets: Record<number, [number, number]>;
+}
+
 export interface World {
   seed: number;
   rngState: number;
@@ -146,4 +183,6 @@ export interface World {
   /** 開発用の「すぐ始める」で作った世界（自球団を選び直せる） */
   quickStart?: boolean;
   season: SeasonState;
+  /** ドラフト（ポストシーズンの後） */
+  draft?: DraftState | null;
 }
