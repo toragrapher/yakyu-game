@@ -16,6 +16,8 @@ import { esc, teamChip } from '../common';
 import { renderGameResult } from '../gameView';
 import { resetWizard } from '../founding/wizard';
 import { logoSvg } from '../logo';
+import { activeSeries, advancePostseasonDay, startPostseason } from '../../core/season/postseason';
+import { renderPostseason } from './postseasonView';
 
 function defaultConfig(): LeagueConfig {
   return {
@@ -95,6 +97,58 @@ function pitcherLine(w: World, p: Player | null): string {
   return `${esc(fullName(p))}${rec}`;
 }
 
+/** ポストシーズンを進める（1日、または最後まで） */
+function runPost(mode: 'day' | 'end'): void {
+  const w = app.world!;
+  if (app.busy) return;
+  if (!w.season.postseason) startPostseason(w);
+  const step = () => {
+    const out = advancePostseasonDay(w);
+    if (out?.userGame) app.lastGame = { result: out.userGame.result, away: out.userGame.away, home: out.userGame.home, label: out.userGame.seriesName };
+    return out;
+  };
+  if (mode === 'day') {
+    step();
+    app.refresh();
+    return;
+  }
+  app.busy = true;
+  const tick = () => {
+    const until = performance.now() + 30;
+    while (performance.now() < until && !w.season.postseason!.finished) if (!step()) break;
+    if (w.season.postseason!.finished) app.busy = false;
+    app.refresh();
+    if (app.busy) setTimeout(tick, 0);
+  };
+  tick();
+}
+
+/** レギュラーシーズン後の「次の試合」欄 */
+function postseasonPanel(w: World, myRank: number): string {
+  const ps = w.season.postseason;
+  const me = w.userTeamId;
+  if (!ps) {
+    const qualified = myRank <= w.config.postseason.teams[w.teams.find((t) => t.id === me)!.league];
+    return `<p><b>レギュラーシーズン終了</b>　${myRank}位で${qualified ? '<span class="win">ポストシーズン進出！</span>' : 'ポストシーズン進出はなりませんでした'}</p>
+      <button id="ps-start" style="width:100%">ポストシーズンを始める</button>`;
+  }
+  if (ps.finished) {
+    const champ = w.teams.find((t) => t.id === ps.championId)!;
+    return `<p><b>${champ.id === me ? '日本一になりました！' : `${esc(champ.name)}が日本一になりました`}</b></p>
+      <p class="muted small">次はドラフトです（ステップ8で作ります）。</p>`;
+  }
+  const mine = activeSeries(w).find((x) => x.teams.includes(me));
+  const info = mine
+    ? `<p><b>${esc(mine.name)}</b>　第${mine.games.length + 1}戦 vs ${esc(w.teams.find((t) => t.id === (mine.teams[0] === me ? mine.teams[1] : mine.teams[0]))!.name)}</p>`
+    : '<p class="muted">自球団の試合はありません。ほかの球団の試合を進めます。</p>';
+  return `${info}
+    ${app.busy ? '<p class="muted">進めています…</p>' : ''}
+    <div class="btns" style="grid-template-columns:1fr 1fr">
+      <button data-ps="day" ${app.busy ? 'disabled' : ''}>1日進む</button>
+      <button data-ps="end" ${app.busy ? 'disabled' : ''}>最後まで</button>
+    </div>`;
+}
+
 export function renderHome(el: HTMLElement): void {
   const w = app.world;
   if (!w) return renderStart(el);
@@ -153,8 +207,8 @@ export function renderHome(el: HTMLElement): void {
     </div>
 
     <div class="card">
-      ${next && opp ? `<div class="row" style="justify-content:space-between"><b>次の試合　${dateLabel(next.date)}</b>${next.interleague ? '<span class="chip" style="background:var(--line)">交流戦</span>' : ''}</div>${probable}` : w.season.finished ? '<p>レギュラーシーズンが終わりました。ポストシーズンはステップ7で作ります。</p>' : ''}
-      ${app.busy ? `<div class="progress" style="margin-top:10px"><span style="width:${Math.round(app.progress * 100)}%"></span></div><p class="muted">進めています…</p>` : ''}
+      ${next && opp ? `<div class="row" style="justify-content:space-between"><b>次の試合　${dateLabel(next.date)}</b>${next.interleague ? '<span class="chip" style="background:var(--line)">交流戦</span>' : ''}</div>${probable}` : w.season.finished ? postseasonPanel(w, myRow + 1) : ''}
+      ${app.busy && !w.season.finished ? `<div class="progress" style="margin-top:10px"><span style="width:${Math.round(app.progress * 100)}%"></span></div><p class="muted">進めています…</p>` : ''}
       ${w.season.finished ? '' : `
       <div class="btns" style="margin-top:10px">
         <button data-run="1" ${app.busy ? 'disabled' : ''}>1日進む</button>
@@ -163,13 +217,17 @@ export function renderHome(el: HTMLElement): void {
       </div>`}
     </div>
 
+    ${w.season.postseason ? renderPostseason(w) : ''}
+
     ${w.season.dayIndex === 0 && w.quickStart ? `
     <div class="card">
       <div class="row"><label>自球団（仮） <select id="pick-team">${w.teams.map((t) => `<option value="${t.id}" ${t.id === w.userTeamId ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label></div>
       <p class="muted small">開幕前だけ変えられます。</p>
     </div>` : ''}
 
-    ${lastLog ? `
+    ${w.season.postseason && lg?.label ? `<h2>直近の試合（${esc(lg.label.replace(/^.+リーグ /, ''))}）</h2>${renderGameResult(lg.result, lg.away, lg.home)}` : ''}
+
+    ${lastLog && !w.season.postseason ? `
     <h2>直近の試合</h2>
     <div class="card">
       <div class="row" style="justify-content:space-between">
@@ -213,6 +271,8 @@ export function renderHome(el: HTMLElement): void {
   el.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) =>
     b.addEventListener('click', () => run(b.dataset.run === 'end' ? 'end' : Number(b.dataset.run))),
   );
+  el.querySelector('#ps-start')?.addEventListener('click', () => { startPostseason(w); app.refresh(); });
+  el.querySelectorAll<HTMLButtonElement>('[data-ps]').forEach((b) => b.addEventListener('click', () => runPost(b.dataset.ps as 'day' | 'end')));
   el.querySelector('#pick-team')?.addEventListener('change', (e) => {
     const id = Number((e.target as HTMLSelectElement).value);
     for (const t of w.teams) t.isUser = t.id === id;

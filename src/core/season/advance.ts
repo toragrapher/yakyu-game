@@ -57,6 +57,7 @@ export function newSeason(rng: Rng, teams: Team[], players: Player[], config: Le
     recentGames: [],
     news: [],
     finished: false,
+    postseason: null,
   };
 }
 
@@ -83,7 +84,7 @@ export function createWorld(seed: number, config: LeagueConfig, year: number, us
 }
 
 /** 日をまたぐ処理：疲労の回復、調子の波、登板記録のずれ、登録日数 */
-function passDays(w: World, rng: Rng, days: number): void {
+export function passDays(w: World, rng: Rng, days: number): void {
   if (days <= 0) return;
   const reg = new Set(Object.values(w.season.firstTeam).flat());
   for (const p of w.players) {
@@ -112,6 +113,25 @@ function passDays(w: World, rng: Rng, days: number): void {
   w.season.todayPitches = {};
 }
 
+/** 試合に出た選手の疲労と、投手の登板記録を更新する（ポストシーズンでも使う） */
+export function applyGameLoad(w: World, r: GameResult, date: string, players: Map<number, Player>): void {
+  for (const s of [0, 1] as const) {
+    for (const b of r.batting[s]) {
+      const p = players.get(b.playerId);
+      // 先発出場した野手は疲れる
+      if (p && p.mainPos !== 'P' && b.pos !== 'PH' && b.pa > 0) {
+        p.fatigue = Math.min(FATIGUE.max, p.fatigue + (b.pos === 'C' ? FATIGUE.catcherPerGame : FATIGUE.fielderPerGame));
+      }
+    }
+    for (const pl of r.pitching[s]) {
+      const p = players.get(pl.playerId);
+      if (p) p.fatigue = Math.min(FATIGUE.max, p.fatigue + pl.pitches * FATIGUE.perPitch);
+      w.season.lastPitched[pl.playerId] = date;
+      w.season.todayPitches[pl.playerId] = (w.season.todayPitches[pl.playerId] ?? 0) + pl.pitches;
+    }
+  }
+}
+
 function recordGame(w: World, level: LevelKey, r: GameResult, date: string, players: Map<number, Player>): void {
   const stats = w.season.stats[level];
   const st = w.season.standings[level];
@@ -126,21 +146,13 @@ function recordGame(w: World, level: LevelKey, r: GameResult, date: string, play
     for (const b of r.batting[s]) {
       (stats[b.playerId] ??= emptySeason());
       addBat(stats[b.playerId].bat, b);
-      const p = players.get(b.playerId);
-      // 先発出場した野手は疲れる
-      if (p && p.mainPos !== 'P' && b.pos !== 'PH' && b.pa > 0) {
-        p.fatigue = Math.min(FATIGUE.max, p.fatigue + (b.pos === 'C' ? FATIGUE.catcherPerGame : FATIGUE.fielderPerGame));
-      }
     }
     for (const pl of r.pitching[s]) {
       (stats[pl.playerId] ??= emptySeason());
       addPitch(stats[pl.playerId].pitch, pl);
-      const p = players.get(pl.playerId);
-      if (p) p.fatigue = Math.min(FATIGUE.max, p.fatigue + pl.pitches * FATIGUE.perPitch);
-      w.season.lastPitched[pl.playerId] = date;
-      w.season.todayPitches[pl.playerId] = (w.season.todayPitches[pl.playerId] ?? 0) + pl.pitches;
     }
   }
+  applyGameLoad(w, r, date, players);
   // 自球団の試合は記録を残す
   if (r.awayId === w.userTeamId || r.homeId === w.userTeamId) {
     const userSide: 0 | 1 = r.awayId === w.userTeamId ? 0 : 1;

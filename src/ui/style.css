@@ -98,3 +98,9 @@ select.wide { width: 100%; }
 .tile-v { font-size: 17px; font-weight: 800; }
 .tile .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 details summary { cursor: pointer; padding: 4px 0; }
+/* ポストシーズン */
+.ps-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+.ps-team { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
+.ps-team .grow { flex: 1; min-width: 0; }
+.ps-wins { font-size: 20px; min-width: 1.2em; text-align: right; }
+.ps-marks span { margin-right: 2px; }

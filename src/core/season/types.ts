@@ -59,6 +59,50 @@ export interface GameLog {
   weather: string;
 }
 
+/** ポストシーズンの1試合 */
+export interface PostGame {
+  date: string;
+  awayId: number;
+  homeId: number;
+  score: [number, number];
+  /** 勝った球団（引き分けは null） */
+  winnerId: number | null;
+  win: string | null;
+  loss: string | null;
+  save: string | null;
+  summary: string[];
+}
+
+/** ポストシーズンの1つのシリーズ */
+export interface Series {
+  /** 'L0'・'L1'（リーグ内）、'C'（優勝決定） */
+  key: 'L0' | 'L1' | 'C';
+  name: string;
+  /** [上位, 下位] */
+  teams: [number, number];
+  /** 勝ち数（アドバンテージを含む） */
+  wins: [number, number];
+  advantage: number;
+  winsNeeded: number;
+  maxGames: number;
+  games: PostGame[];
+  winnerId: number | null;
+}
+
+export interface PostseasonState {
+  /** リーグごとの進出球団（順位順）。L0・L1 */
+  seeds: [number[], number[]];
+  /** リーグごとに、次に勝ち上がりの相手になる順位の位置 */
+  ladder: [number, number];
+  /** リーグの勝者（決まったら） */
+  leagueWinners: [number | null, number | null];
+  series: Series[];
+  /** 最後に試合をした日（次の試合の日付の計算に使う） */
+  date: string;
+  championId: number | null;
+  finished: boolean;
+}
+
 export interface SeasonState {
   year: number;
   schedule: Schedule;
@@ -85,6 +129,8 @@ export interface SeasonState {
   recentGames: GameLog[];
   news: { date: string; text: string }[];
   finished: boolean;
+  /** ポストシーズン（レギュラーシーズン後に始める） */
+  postseason: PostseasonState | null;
 }
 
 export interface World {

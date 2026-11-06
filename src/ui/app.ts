@@ -8,7 +8,7 @@ export const app = {
   world: null as World | null,
   screen: 'home' as ScreenName,
   /** 直近の自球団の試合（詳しい結果を表示する用。セーブしない） */
-  lastGame: null as { result: GameResult; away: GameTeam; home: GameTeam } | null,
+  lastGame: null as { result: GameResult; away: GameTeam; home: GameTeam; label?: string } | null,
   /** 進行中（シーズン終了まで など）なら true */
   busy: false,
   progress: 0,
