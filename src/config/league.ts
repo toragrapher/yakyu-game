@@ -32,6 +32,15 @@ export const INTERLEAGUE_START_RATIO = 0.3;
 export const ROSTER_LIMIT = 70;
 /** 一軍の出場選手登録の人数（未確認のため仮置き） */
 export const FIRST_TEAM_SIZE = 29;
+
+/**
+ * 開幕に必要な人数（仮置き）。戦力の整理を終えるときに確かめる。
+ * all は支配下＋育成（一軍と二軍の試合が組める人数）、roster は支配下だけ（一軍の登録に必要）
+ */
+export const OPENING_MIN = {
+  all: { P: 22, C: 4, F: 22 },
+  roster: { total: 29, P: 10, C: 2, F: 10 },
+};
 /** そのうち投手の人数の目安 */
 export const FIRST_TEAM_PITCHERS = 13;
 /** 先発ローテーションの人数 */

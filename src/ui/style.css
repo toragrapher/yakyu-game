@@ -337,3 +337,9 @@ button.bc-go { display: block; width: 100%; margin-top: 12px; padding: 14px 0; f
 .slot-team { font-weight: 900; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .slot-btns { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 .slot-btns button { padding: 8px 12px; font-size: 13px; }
+
+/* 合同トライアウト */
+.tile-v.short { color: var(--win); }
+.tile-v.ok { color: #4fe08a; }
+.to-btns { display: flex; flex-direction: column; gap: 4px; flex-shrink: 0; }
+.to-btns button { padding: 6px 10px; font-size: 12px; min-height: 0; }

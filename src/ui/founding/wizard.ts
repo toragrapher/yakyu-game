@@ -1,6 +1,6 @@
 // 球団設立の画面：①リーグ設定 → ②球団（名前・本拠地・球場・ロゴ） → ③初期メンバー → ④確認
 import {
-  EXPANSION_PICKS, ROOKIE_MAX, SHORT_NAME_MAX, TRYOUT_MAX,
+  INITIAL_MEMBERS, ROOKIE_MAX, SHORT_NAME_MAX,
 } from '../../config/founding';
 import {
   DEFAULT_INTERLEAGUE_GAMES, DEFAULT_INTERLEAGUE_MODE, DEFAULT_TEAM_COUNTS, LEAGUE_NAMES, MAX_TEAMS_PER_LEAGUE, MIN_TEAMS_PER_LEAGUE,
@@ -218,10 +218,10 @@ function stepMethod(): string {
       <button data-method="${m}">${cur === m ? '選択中（続きへ）' : 'この方法にする'}</button>
     </div>`;
   return `${header('③ 初期メンバーの集め方')}
-    <p class="muted small">集め方による戦力の差は、選んだ難しさとして扱います（あとでそろえません）。</p>
-    ${card('omakase', 'おまかせ', 'ふつう', 'すべてのポジションを自動で埋めた選手をもらいます。戦力はほかの球団の平均くらいです。')}
-    ${card('expansion', 'エクスパンションドラフト', 'やや難しい', `既存の球団がプロテクトした28人以外から、${EXPANSION_PICKS}人を指名します。残りは若手で埋めます。目利きしだいで強くも弱くもなります。`)}
-    ${card('tryout', 'トライアウト＋新人', '難しい', `自由契約の選手（最大${TRYOUT_MAX}人）と、特別ドラフトの新人（最大${ROOKIE_MAX}人）だけで組みます。最初は弱いですが、新人が育てば強くなります。`)}
+    <p class="muted small">どの方法でも、最初に在籍するのは${INITIAL_MEMBERS}人（育成0人）です。残りは、このあとのドラフト会議と、ストーブリーグの合同トライアウトで自分で補強します。集め方による戦力の差は、選んだ難しさとして扱います（あとでそろえません）。</p>
+    ${card('omakase', 'おまかせ', 'ふつう', `ポジションの釣り合いを取った${INITIAL_MEMBERS}人を自動でもらいます。力はほかの球団の主力の平均くらいです。`)}
+    ${card('expansion', 'エクスパンションドラフト', 'やや難しい', `既存の球団がプロテクトした28人以外から、${INITIAL_MEMBERS}人を指名します。目利きしだいで強くも弱くもなります。`)}
+    ${card('tryout', 'トライアウト＋新人', '難しい', `自由契約の選手と、特別ドラフトの新人（最大${ROOKIE_MAX}人）から、合わせて${INITIAL_MEMBERS}人を獲ります。最初は弱いですが、新人が育てば強くなります。`)}
     <div class="row"><button class="sub" id="wz-back">戻る</button></div>`;
 }
 
@@ -265,12 +265,12 @@ function stepPick(): string {
     || sortValue(b, 'value')! - sortValue(a, 'value')!);
   const rookies = f.picks.filter((id) => isRookieCandidate(f, f.players.find((p) => p.id === id)!)).length;
   const counter = f.method === 'expansion'
-    ? `指名 ${f.picks.length}/${EXPANSION_PICKS}人（1球団${expansionMaxPerTeam(f)}人まで）`
-    : `自由契約 ${f.picks.length - rookies}/${TRYOUT_MAX}人・新人 ${rookies}/${ROOKIE_MAX}人`;
+    ? `指名 ${f.picks.length}/${INITIAL_MEMBERS}人（1球団${expansionMaxPerTeam(f)}人まで）`
+    : `獲得 ${f.picks.length}/${INITIAL_MEMBERS}人（うち新人 ${rookies}/${ROOKIE_MAX}人まで）`;
   const filters: [WizardState['filter'], string][] = [['all', '全員'], ['P', '投手'], ['C', '捕手'], ['IF', '内野'], ['OF', '外野'], ...(f.method === 'tryout' ? [['veteran', '自由契約'], ['rookie', '新人']] as [WizardState['filter'], string][] : []), ['picked', '獲得済み']];
   return `${header(f.method === 'expansion' ? '③ エクスパンションドラフト' : '③ トライアウト＋新人')}
-    <div class="card"><b>${counter}</b><p class="muted small">足りないポジションは、最後に自動で埋めます。「総合」と「即」は今の力、「将」は将来性（ランクのみ）です。</p>
-      <div class="row"><button class="sub" id="pk-auto">おまかせで残りを獲る</button><button id="wz-next">確認へ</button></div></div>
+    <div class="card"><b>${counter}</b><p class="muted small">ちょうど${INITIAL_MEMBERS}人選ぶと先へ進めます。足りないポジションは、ドラフトと合同トライアウトで補強します。「総合」と「即」は今の力、「将」は将来性（ランクのみ）です。</p>
+      <div class="row"><button class="sub" id="pk-auto">おまかせで${INITIAL_MEMBERS}人まで選ぶ</button><button id="wz-next" ${f.picks.length === INITIAL_MEMBERS ? '' : 'disabled'}>確認へ</button></div></div>
     <div class="row" style="margin-bottom:8px">
       <label>並び順 <select id="pk-sort">${SORTS.map(([k, l]) => opt(k, l, ws.sortKey)).join('')}</select></label>
       <div class="seg" style="margin:0;flex:1"><button class="${ws.desc ? 'on' : ''}" data-desc="1">${ws.sortKey === 'age' ? '年上から' : '高い順'}</button><button class="${ws.desc ? '' : 'on'}" data-desc="0">${ws.sortKey === 'age' ? '若い順' : '低い順'}</button></div>
@@ -301,7 +301,7 @@ function stepConfirm(): string {
       <p>${LEAGUE_NAMES[ws.userLeague]}に参入｜${LEAGUE_NAMES[0]} ${c.teamCounts[0]}球団・${LEAGUE_NAMES[1]} ${c.teamCounts[1]}球団</p>
       <p>試合数 ${c.games ?? '自動'}｜交流戦 ${{ period: '期間集中型', spread: '分散型', none: 'なし' }[c.interleague.mode]}｜DH ${c.dh.map((d, i) => `${LEAGUE_NAMES[i].slice(0, 2)}${d ? 'あり' : 'なし'}`).join('・')}</p>
       <p>ポストシーズン：各リーグ上位${c.postseason.teams[0]}・${c.postseason.teams[1]}球団${c.postseason.advantage ? '（1位にアドバンテージ）' : ''}</p>
-      <p>初期メンバー：${{ omakase: 'おまかせ', expansion: 'エクスパンションドラフト', tryout: 'トライアウト＋新人' }[f.method!]}${f.method !== 'omakase' ? `（獲得 ${f.picks.length}人、残りは自動で補充）` : ''}</p>
+      <p>初期メンバー：${{ omakase: 'おまかせ', expansion: 'エクスパンションドラフト', tryout: 'トライアウト＋新人' }[f.method!]}（${INITIAL_MEMBERS}人・育成0人で始めます。残りはドラフトと合同トライアウトで補強）</p>
     </div>
     ${top.length ? `<h2>主な選手</h2><div class="card">${top.map((p) => `<div class="prow"><div class="grow"><b>${esc(playerTag(p))}</b><div class="abil">${abilityLine(p)}</div></div></div>`).join('')}</div>` : ''}
     <h2>ほかの球団の名前</h2>
@@ -444,8 +444,7 @@ export function renderWizard(el: HTMLElement): void {
     }));
     $('wz-back')!.addEventListener('click', () => go(f.method === 'omakase' ? 3 : 4));
     $('wz-start')!.addEventListener('click', () => {
-      // 獲得した人数が少ないときは確認する
-      if (f.method !== 'omakase' && f.picks.length === 0 && !confirm('まだ誰も獲得していません。全員を自動で補充して始めますか？')) return;
+      if (f.method !== 'omakase' && f.picks.length !== INITIAL_MEMBERS) return alert(`初期メンバーはちょうど${INITIAL_MEMBERS}人選んでください（今${f.picks.length}人）`);
       app.world = finishFounding(f);
       app.lastGame = null;
       ws = initial();

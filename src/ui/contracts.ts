@@ -1,6 +1,6 @@
 // 補強画面の「契約更改」と「お金」のタブ
 import { CONTRACT } from '../config/contract';
-import { ROSTER_LIMIT } from '../config/league';
+import { OPENING_MIN, ROSTER_LIMIT } from '../config/league';
 import { availableFunds, payroll } from '../core/finance';
 import { fullName, POS_LABEL, ROLE_LABEL } from '../core/labels';
 import { minOffer } from '../core/offseason/contract';
@@ -12,11 +12,37 @@ import { avg, era, holdPoints, ops, rate3 } from '../core/season/stats';
 import type { World } from '../core/season/types';
 import type { Player } from '../core/types';
 import { app } from './app';
-import { esc } from './common';
+import { abilityLine, esc } from './common';
+import { autoFillTryout, openingCounts, signTryout, tryoutCandidates, tryoutOpen, unsignTryout } from '../core/tryout';
 import { moneyLabel } from './money';
 
 /** 提示額の入力（選手ごと。画面を描き直しても残す） */
 const offers = new Map<number, number>();
+/** 合同トライアウトの候補一覧の絞り込みと表示数 */
+let toFilter: 'all' | 'P' | 'C' | 'IF' | 'OF' = 'all';
+let toShown = 30;
+
+/** 合同トライアウト（初年度の戦力の整理）の部分 */
+function jointTryout(w: World): string {
+  if (!tryoutOpen(w)) return '';
+  const groupOf = (p: Player) => (p.mainPos === 'P' ? 'P' : p.mainPos === 'C' ? 'C' : p.mainPos === 'OF' ? 'OF' : 'IF');
+  const list = tryoutCandidates(w).filter((p) => toFilter === 'all' || groupOf(p) === toFilter).sort((a, b) => overall(b) - overall(a));
+  const counts = openingCounts(w);
+  const filters: [typeof toFilter, string][] = [['all', '全員'], ['P', '投手'], ['C', '捕手'], ['IF', '内野'], ['OF', '外野']];
+  return `
+    <h2>合同トライアウト</h2>
+    <div class="card">
+      <p class="small">自由契約の選手から、足りない選手を獲れます（契約金なし。年俸は期末に払います）。戦力の整理を終えると、獲らなかった選手はいなくなります。</p>
+      <p class="small"><b>開幕に必要な人数</b>（今／必要）</p>
+      <div class="tiles" style="margin-bottom:8px">${counts.map((c) => `<div class="tile"><div class="tile-k">${c.label}</div><div class="tile-v ${c.have < c.need ? 'short' : 'ok'}">${c.have}<small>/${c.need}</small></div></div>`).join('')}</div>
+      <p class="muted small">投手・捕手・野手は支配下と育成の合計です。支配下だけでも投手${OPENING_MIN.roster.P}人・捕手${OPENING_MIN.roster.C}人・捕手以外の野手${OPENING_MIN.roster.F}人以上が必要です（一軍の登録のため）。</p>
+      <button class="sub" id="to-auto" style="width:100%">足りない分をおまかせで獲る</button>
+    </div>
+    <div class="teamtabs" style="margin-bottom:8px">${filters.map(([k, l]) => `<button class="${toFilter === k ? '' : 'sub'}" data-to-filter="${k}">${l}</button>`).join('')}</div>
+    <div class="card">${list.slice(0, toShown).map((p) => `<div class="prow"><div class="grow"><b>${esc(fullName(p))}</b> <span class="muted small">${posOf(p)} ${p.age}歳 年俸${moneyLabel(p.salary)}</span><div class="abil">${abilityLine(p)}</div></div>
+      <div class="to-btns"><button data-to-sign="${p.id}" data-c="roster">支配下で獲る</button><button class="sub" data-to-sign="${p.id}" data-c="ikusei">育成で獲る</button></div></div>`).join('') || '<p class="muted">該当する選手はいません</p>'}
+      ${list.length > toShown ? `<button class="sub" id="to-more" style="width:100%;margin-top:8px">もっと見る（残り${list.length - toShown}人）</button>` : ''}</div>`;
+}
 
 function seasonLine(w: World, p: Player): string {
   const s = w.season.stats.first[p.id];
@@ -119,20 +145,22 @@ export function renderContractTab(w: World): string {
     const mine = w.players.filter((p) => p.teamId === w.userTeamId && !p.retired);
     const cnt = userRosterCount(w);
     const draftees = new Set((w.draft?.picks ?? []).filter((x) => x.teamId === w.userTeamId).map((x) => x.playerId));
-    const row = (p: Player) => `<div class="prow"><div class="grow"><b>${esc(fullName(p))}</b>${draftees.has(p.id) ? ' <span class="chip" style="background:var(--line)">新人</span>' : ''} <span class="muted small">${posOf(p)} ${p.age}歳 総合${Math.round(overall(p))} 年俸${moneyLabel(p.salary)}</span><div class="small muted">${seasonLine(w, p)}</div></div>
-      ${p.contract === 'ikusei' ? `<button class="sub" data-promote="${p.id}">支配下へ</button>` : `<button class="sub" data-ikusei="${p.id}">育成へ</button>`}
-      <button class="sub" data-release="${p.id}">自由契約</button></div>`;
+    const signed = new Set(w.tryout?.signed ?? []);
+    const row = (p: Player) => `<div class="prow"><div class="grow"><b>${esc(fullName(p))}</b>${draftees.has(p.id) ? ' <span class="chip" style="background:var(--line)">新人</span>' : ''}${signed.has(p.id) ? ' <span class="chip" style="background:var(--line)">トライアウト</span>' : ''} <span class="muted small">${posOf(p)} ${p.age}歳 総合${Math.round(overall(p))} 年俸${moneyLabel(p.salary)}</span><div class="small muted">${seasonLine(w, p)}</div></div>
+      ${signed.has(p.id) ? `<button class="sub" data-to-unsign="${p.id}">取消</button>` : `${p.contract === 'ikusei' ? `<button class="sub" data-promote="${p.id}">支配下へ</button>` : `<button class="sub" data-ikusei="${p.id}">育成へ</button>`}
+      <button class="sub" data-release="${p.id}">自由契約</button>`}</div>`;
     const sorted = (ps: Player[]) => ps.slice().sort((a, b) => overall(a) - overall(b));
     return `
       <div class="card">
         <p><b>戦力の整理</b>　支配下 <b class="${cnt.roster > ROSTER_LIMIT ? 'lose' : ''}">${cnt.roster}</b>/${ROSTER_LIMIT}人・育成 ${cnt.ikusei}人</p>
-        <p class="muted small">支配下を${ROSTER_LIMIT}人以内にすると、次（キャンプ）へ進めます。自由契約にした選手は退団します。総合の低い順に並んでいます。</p>
+        <p class="muted small">支配下を${ROSTER_LIMIT}人以内にし、開幕に必要な人数がそろうと、次（キャンプ）へ進めます。自由契約にした選手は退団します。総合の低い順に並んでいます。</p>
         <p class="muted small">選手の扱いにファンは敏感です。1年に${FAN_PENALTY.freeReleases}人を超える自由契約、在籍の長い選手や愛着の強い選手の自由契約、若手の育成落ちは、コア層のファンが離れる原因になります。</p>
         ${w.offseason?.fanLoss?.length ? `<p class="small lose">離れたコア層：${w.offseason.fanLoss.reduce((s2, x) => s2 + x.lost, 0).toLocaleString()}人</p>` : ''}
         <button id="rs-done" ${cnt.roster > ROSTER_LIMIT ? 'disabled' : ''}>戦力の整理を終える</button>
       </div>
+      ${jointTryout(w)}
       <h2>支配下</h2><div class="card">${sorted(mine.filter((p) => p.contract === 'roster')).map(row).join('')}</div>
-      <h2>育成</h2><div class="card">${sorted(mine.filter((p) => p.contract === 'ikusei')).map(row).join('')}</div>`;
+      <h2>育成</h2><div class="card">${sorted(mine.filter((p) => p.contract === 'ikusei')).map(row).join('') || '<p class="muted small">いません</p>'}</div>`;
   }
   return '<div class="card"><p>契約更改と戦力の整理は終わりました。「メイン」でキャンプ地を選んで、翌年の開幕へ進みます。</p></div>';
 }
@@ -195,6 +223,15 @@ export function bindContractTab(el: HTMLElement, w: World): void {
     if (why) alert(why);
     app.refresh();
   });
+  on('[data-to-sign]', 'click', (b) => {
+    const why = signTryout(w, Number(b.dataset.toSign), b.dataset.c as 'roster' | 'ikusei');
+    if (why) alert(why);
+    app.refresh();
+  });
+  on('[data-to-unsign]', 'click', (b) => { unsignTryout(w, Number(b.dataset.toUnsign)); app.refresh(); });
+  on('[data-to-filter]', 'click', (b) => { toFilter = b.dataset.toFilter as typeof toFilter; toShown = 30; app.refresh(); });
+  on('#to-more', 'click', () => { toShown += 30; app.refresh(); });
+  on('#to-auto', 'click', () => { autoFillTryout(w); app.refresh(); });
   on('#rs-done', 'click', () => {
     const why = finishRoster(w);
     if (why) alert(why);

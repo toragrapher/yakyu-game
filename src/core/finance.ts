@@ -3,6 +3,7 @@ import {
   DRAFT_COST_ESTIMATE, INITIAL_GRANT_RATE, OPERATING_COST, RAISE_ESTIMATE_RATE, SPONSOR_BASE, SPONSOR_CHAMPION,
   SPONSOR_LEAGUE_WIN, SPONSOR_PER_STAR, SPONSOR_PER_TITLE, SPONSOR_POSTSEASON, SPONSOR_RANK_BONUS, SPONSOR_STAR_OVERALL,
 } from '../config/budget';
+import { ROSTER_TEMPLATE } from '../config/generate';
 import { overall } from './ratings';
 import { standingsTable } from './season/standings';
 import type { Award, Finance, World } from './season/types';
@@ -15,7 +16,18 @@ export function payroll(w: World): number {
 /** 初年度の支給額（必要資金 × 1.1） */
 export function initialGrant(w: World): number {
   const pr = payroll(w);
-  return Math.round((pr + DRAFT_COST_ESTIMATE + pr * RAISE_ESTIMATE_RATE + OPERATING_COST) * INITIAL_GRANT_RATE);
+  return Math.round((pr + DRAFT_COST_ESTIMATE + pr * RAISE_ESTIMATE_RATE + OPERATING_COST + fillEstimate(w)) * INITIAL_GRANT_RATE);
+}
+
+/** 補強の見込み：基本人数（支配下）に足りない人数を、合同トライアウトの候補の平均年俸で埋めた場合の年俸 */
+function fillEstimate(w: World): number {
+  if (!w.tryout?.pool.length) return 0;
+  const base = ROSTER_TEMPLATE.reduce((s, t) => s + t.count, 0);
+  const have = w.players.filter((p) => p.teamId === w.userTeamId && !p.retired && p.contract === 'roster').length;
+  const pool = new Set(w.tryout.pool);
+  const cands = w.players.filter((p) => pool.has(p.id));
+  const avg = cands.reduce((s, p) => s + p.salary, 0) / cands.length;
+  return Math.round(Math.max(0, base - have) * avg);
 }
 
 /** お金の記録を始める（自球団があるときだけ） */

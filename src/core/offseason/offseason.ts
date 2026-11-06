@@ -13,6 +13,8 @@ import { overall, potentialOverall } from '../ratings';
 import { Rng } from '../rng';
 import { newSeason, setStartFirstYearHook } from '../season/advance';
 import { standingsTable } from '../season/standings';
+import { selectFirstTeam } from '../season/firstTeam';
+import { closeTryout, openingShortfall } from '../tryout';
 import type { OffseasonState, World } from '../season/types';
 import type { MainPos, Player, PitcherRole } from '../types';
 import { computeAwards } from './awards';
@@ -249,7 +251,12 @@ export function promoteIkusei(w: World, id: number): string | null {
 /** 戦力の整理を終える（支配下70人以内でないと進めない） */
 export function finishRoster(w: World): string | null {
   const n = userRosterCount(w).roster;
-  if (w.teams.some((t) => t.id === w.userTeamId) && n > ROSTER_LIMIT) return `支配下が${n}人います。${ROSTER_LIMIT}人以内にしてください`;
+  if (w.teams.some((t) => t.id === w.userTeamId)) {
+    if (n > ROSTER_LIMIT) return `支配下が${n}人います。${ROSTER_LIMIT}人以内にしてください`;
+    const short = openingShortfall(w);
+    if (short.length) return `開幕に必要な人数が足りません：${short.map((s) => `${s.label} ${s.have}/${s.need}人`).join('、')}`;
+  }
+  closeTryout(w);
   w.offseason!.phase = 'camp';
   return null;
 }
@@ -269,12 +276,28 @@ export function finishCamp(w: World, userSiteId: string | null): string | null {
   if (why) return why;
   if (w.offseason?.firstYear) {
     // 球団設立の年：用意してあったシーズンがそのまま開幕する。シーズン中に視察するドラフト候補を作る
+    // 設立のあとに入った選手（ドラフト・合同トライアウト）も含めて、一軍の登録を選び直す
     w.offseason = null;
+    refreshFirstTeams(w);
     ensureDraftCandidates(w);
     return null;
   }
   startNextSeason(w);
   return null;
+}
+
+/** 一軍の登録を、今の選手で選び直す（開幕前だけ）。打順・ローテの設定が一軍にいない選手を指していたら自動に戻す */
+function refreshFirstTeams(w: World): void {
+  for (const t of w.teams) {
+    const ft = selectFirstTeam(w.players.filter((p) => p.teamId === t.id && !p.retired));
+    const ids = [...ft.rotation, ...ft.relievers, ...ft.fielders].map((p) => p.id);
+    w.season.firstTeam[t.id] = ids;
+    const reg = new Set(ids);
+    for (const p of w.players) if (p.teamId === t.id) p.level = reg.has(p.id) ? 'first' : 'farm';
+    const st = w.season.settings[t.id];
+    if (st?.lineup && st.lineup.some((x) => !reg.has(x.playerId))) st.lineup = null;
+    if (st?.rotation && st.rotation.some((id) => !reg.has(id))) st.rotation = null;
+  }
 }
 
 /** 翌年のシーズンを作る（采配の設定は引き継ぐ） */

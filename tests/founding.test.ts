@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EXPANSION_PICKS, ROOKIE_MAX, TRYOUT_MAX } from '../src/config/founding';
+import { INITIAL_MEMBERS, ROOKIE_MAX } from '../src/config/founding';
 import { ROSTER_LIMIT } from '../src/config/league';
 import { autoPick, canPick, chooseMethod, finishFounding, isRookieCandidate, pick, startFounding, unpick, type NewTeamInput } from '../src/core/founding';
 import { advanceDays } from '../src/core/season/advance';
@@ -27,7 +27,12 @@ describe('球団設立', () => {
       const me = w.teams.find((t) => t.id === w.userTeamId)!;
       expect(me.league).toBe(1);
       expect(me.name).toBe('湘南シーガルズ');
-      for (const t of w.teams) {
+      // 自球団は、どの方式でもちょうど30人・育成0人で始まる
+      const mineNow = w.players.filter((p) => p.teamId === me.id && !p.retired);
+      expect(mineNow.length).toBe(INITIAL_MEMBERS);
+      expect(mineNow.filter((p) => p.contract === 'ikusei').length).toBe(0);
+      expect(w.tryout!.pool.length).toBeGreaterThan(0);
+      for (const t of w.teams.filter((x) => x.id !== me.id)) {
         const roster = w.players.filter((p) => p.teamId === t.id && p.contract === 'roster' && !p.retired);
         expect(roster.length).toBeLessThanOrEqual(ROSTER_LIMIT);
         expect(roster.length).toBeGreaterThanOrEqual(60);
@@ -37,8 +42,10 @@ describe('球団設立', () => {
       const names = w.players.map((p) => `${p.familyName} ${p.givenName}`);
       expect(new Set(names).size).toBe(names.length);
       completeFirstYear(w);
+      expect(w.season.firstTeam[me.id].length).toBe(29);
       advanceDays(w, 20);
       expect(w.season.standings.first[me.id].w + w.season.standings.first[me.id].l + w.season.standings.first[me.id].t).toBeGreaterThan(0);
+      expect(w.season.standings.farm[me.id].w + w.season.standings.farm[me.id].l + w.season.standings.farm[me.id].t).toBeGreaterThan(0);
     });
   }
 
@@ -52,21 +59,29 @@ describe('球団設立', () => {
     unpick(f, id);
     expect(f.players.find((p) => p.id === id)!.teamId).toBe(from);
     autoPick(f);
-    expect(f.picks.length).toBe(EXPANSION_PICKS);
+    expect(f.picks.length).toBe(INITIAL_MEMBERS);
     const other = f.pool.find((x) => !f.picks.includes(x))!;
     expect(canPick(f, other)).not.toBeNull();
   });
 
-  it('トライアウト：自由契約と新人の上限、選び直すと候補が消える', () => {
+  it('トライアウト：合計30人と新人の上限、選び直すと候補が消える', () => {
     const f = startFounding(3, 2027, cfg(), 0, team);
     chooseMethod(f, 'tryout');
     autoPick(f);
     const picked = f.picks.map((id) => f.players.find((p) => p.id === id)!);
     expect(picked.filter((p) => isRookieCandidate(f, p)).length).toBeLessThanOrEqual(ROOKIE_MAX);
-    expect(picked.filter((p) => !isRookieCandidate(f, p)).length).toBeLessThanOrEqual(TRYOUT_MAX);
+    expect(picked.length).toBe(INITIAL_MEMBERS);
     const before = f.players.length;
     chooseMethod(f, 'omakase');
     expect(f.players.length).toBeLessThan(before);
     expect(f.players.filter((p) => p.teamId === f.userTeamId).length).toBe(0);
+  });
+
+  it('30人ちょうどでないと設立を終えられない', () => {
+    const f = startFounding(4, 2027, cfg(), 0, team);
+    chooseMethod(f, 'expansion');
+    autoPick(f);
+    unpick(f, f.picks[0]);
+    expect(() => finishFounding(f)).toThrow();
   });
 });

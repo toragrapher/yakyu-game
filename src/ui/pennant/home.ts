@@ -58,7 +58,6 @@ function renderStart(el: HTMLElement): void {
       <div class="bc-name" style="margin:8px 0 4px">球団経営シミュレーション</div>
       <div class="bc-s">新規参入球団のGM兼監督として、球団を設立してペナントを戦います。</div>
     </div>
-    <h2>セーブ枠を選ぶ</h2>
     ${saves.map((m, i) => {
       const slot = i + 1;
       const [team, at] = m ? m.label.split('｜') : ['', ''];
@@ -253,7 +252,9 @@ function offseasonPanel(w: World): string {
       <button id="os-close" style="width:100%">${w.season.year}年度を締める</button>`;
   }
   if (off.phase === 'contracts') return `<p><b>契約更改</b>：自球団の選手と年俸を交渉します。</p><button id="go-contract" style="width:100%">契約更改へ（補強）</button>`;
-  if (off.phase === 'roster') return `<p><b>戦力の整理</b>：支配下を70人以内にします（自由契約・育成からの昇格）。</p><button id="go-contract" style="width:100%">戦力の整理へ（補強）</button>`;
+  if (off.phase === 'roster') return w.offseason?.firstYear && w.tryout
+    ? `<p><b>戦力の整理</b>：合同トライアウトで足りない選手を獲り、開幕に必要な人数をそろえます。</p><button id="go-contract" style="width:100%">戦力の整理へ（補強）</button>`
+    : `<p><b>戦力の整理</b>：支配下を70人以内にします（自由契約・育成からの昇格）。</p><button id="go-contract" style="width:100%">戦力の整理へ（補強）</button>`;
   const funds = availableFunds(w);
   return `<p><b>キャンプ</b>：キャンプ地を選ぶと、全選手の能力が上がります。ランクが高いほど効果が大きく、費用もかかります。</p>
     <p class="small">使える資金：<b>${moneyLabel(funds)}</b></p>
@@ -294,7 +295,7 @@ function firstYearPanel(w: World): string {
   const cur = off.phase === 'draft' ? 0 : off.phase === 'roster' ? 1 : 2;
   const bar = `<div class="seg" style="margin-bottom:8px">${steps.map((x, i) => `<button class="${i === cur ? 'on' : ''}" disabled>${x}</button>`).join('')}</div>`;
   if (off.phase === 'draft') {
-    return `${bar}<p><b>球団設立の年です。</b>開幕の前に、まず${off.year}年のドラフト会議で新人を指名します。</p>
+    return `${bar}<p><b>球団設立の年です。</b>今いる選手は${w.players.filter((p) => p.teamId === w.userTeamId && !p.retired).length}人です。開幕の前に、まず${off.year}年のドラフト会議で新人を指名し、そのあと合同トライアウトで足りない選手を補強します。</p>
       <button id="go-draft" style="width:100%">ドラフト会議へ（補強）</button>`;
   }
   return bar + offseasonPanel(w);

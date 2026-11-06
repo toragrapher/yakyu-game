@@ -4,6 +4,7 @@ import { advanceDraft, available, beginRound1, currentTeam, drawLottery, submitR
 import { finishCamp, finishRoster, releasePlayer, syncFirstYear, userRosterCount } from '../src/core/offseason/offseason';
 import { overall, potentialOverall } from '../src/core/ratings';
 import type { World } from '../src/core/season/types';
+import { autoFillTryout } from '../src/core/tryout';
 
 /** 自球団は将来性の高い順に、支配下 n 人・育成 m 人を指名する。くじは空いている最初の封筒を引く */
 export function playDraft(w: World, n: number, m: number): void {
@@ -24,10 +25,11 @@ export function playDraft(w: World, n: number, m: number): void {
   }
 }
 
-/** 球団設立の年を最後まで進めて開幕させる（ドラフト → 戦力の整理 → キャンプ） */
+/** 球団設立の年を最後まで進めて開幕させる（ドラフト → 戦力の整理（合同トライアウトで足りない分を獲る） → キャンプ） */
 export function completeFirstYear(w: World, siteId = 'kagoshima'): void {
   playDraft(w, 5, 1);
   syncFirstYear(w);
+  autoFillTryout(w);
   while (userRosterCount(w).roster > ROSTER_LIMIT) {
     const worst = w.players.filter((p) => p.teamId === w.userTeamId && !p.retired && p.contract === 'roster').sort((a, b) => overall(a) - overall(b))[0];
     releasePlayer(w, worst.id);

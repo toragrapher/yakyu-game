@@ -308,6 +308,8 @@ export interface World {
   history?: YearRecord[];
   /** 自球団のお金 */
   finance?: Finance;
+  /** 初年度のストーブリーグの合同トライアウト（候補の選手ID。獲った選手もここに残し、戦力の整理を終えるまで取り消せる） */
+  tryout?: { pool: number[]; signed: number[] };
   /** 球団ごとのファン */
   fans?: Record<number, Fans>;
   /** 自球団のチケットの値段（円） */
