@@ -24,6 +24,8 @@ import { availableFunds } from '../../core/finance';
 import { closeYear, finishCamp, syncFirstYear } from '../../core/offseason/offseason';
 import { moneyLabel } from '../money';
 import { openReinforceTab } from '../reinforce';
+import { deleteSave } from '../../save/db';
+import { saveStatus } from '../../save/autosave';
 import { commitLocker } from '../../core/locker';
 import { todayOf } from '../../core/draft';
 
@@ -154,6 +156,15 @@ function runPost(mode: 'day' | 'end'): void {
     if (app.busy) setTimeout(tick, 0);
   };
   tick();
+}
+
+/** 自動セーブの状態 */
+function saveLine(): string {
+  const st = saveStatus();
+  if (st.error) return `<span class="lose">保存できませんでした：${esc(st.error)}</span>`;
+  if (!st.savedAt) return '自動で保存します（この端末の中に保存）';
+  const t = st.savedAt;
+  return `自動保存しました（${t.getHours()}:${String(t.getMinutes()).padStart(2, '0')}）`;
 }
 
 /** ホーム・ビジターの印 */
@@ -380,7 +391,7 @@ export function renderHome(el: HTMLElement): void {
       }).join('')}</table></details>` : ''}
 
     ${w.season.news.length ? `<h2>お知らせ</h2><div class="card"><ul class="list">${w.season.news.slice(0, 8).map((n) => `<li class="small">${dateLabel(n.date)} ${esc(n.text)}</li>`).join('')}</ul></div>` : ''}
-    <div class="card"><button class="sub" id="new-season">最初からやり直す</button></div>
+    <div class="card small"><div class="muted">${saveLine()}</div><button class="sub" id="new-season" style="margin-top:6px">最初からやり直す</button></div>
   `;
   el.querySelectorAll<HTMLButtonElement>('[data-run]').forEach((b) =>
     b.addEventListener('click', () => run(b.dataset.run === 'end' ? 'end' : Number(b.dataset.run))),
@@ -412,10 +423,11 @@ export function renderHome(el: HTMLElement): void {
     app.refresh();
   });
   el.querySelector('#new-season')!.addEventListener('click', () => {
-    if (confirm('今のシーズンを捨てて、最初からやり直しますか？')) {
+    if (confirm('今の球団とセーブを消して、最初からやり直しますか？（元には戻せません）')) {
       app.world = null;
       app.lastGame = null;
-      app.refresh();
+      app.locker = null;
+      void deleteSave().then(() => app.refresh());
     }
   });
 }

@@ -8,6 +8,9 @@ import { renderHome } from './ui/pennant/home';
 import { renderRecords } from './ui/records';
 import { renderReinforce } from './ui/reinforce';
 import './ui/style.css';
+import { scheduleSave } from './save/autosave';
+import { deleteSave, loadWorld } from './save/db';
+import { registerServiceWorker } from './pwa';
 
 const root = document.getElementById('app')!;
 root.innerHTML = `<div id="screen"></div><nav class="nav" id="nav"></nav>`;
@@ -50,5 +53,24 @@ function refresh(): void {
   window.scrollTo(0, changed ? 0 : y);
 }
 
-app.refresh = refresh;
-refresh();
+app.refresh = () => {
+  refresh();
+  // 進めている途中（シーズン終了まで など）は、終わってから保存する
+  if (!app.busy) scheduleSave(app.world);
+};
+
+/** 起動：保存してある続きがあれば読み込む */
+async function boot(): Promise<void> {
+  screen.innerHTML = '<p class="muted" style="padding:24px">読み込み中…</p>';
+  try {
+    const rec = await loadWorld();
+    if (rec) app.world = rec.world;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (confirm(`セーブデータを読み込めませんでした（${msg}）。\nセーブを消して最初から始めますか？`)) await deleteSave();
+  }
+  app.refresh();
+}
+void boot();
+
+registerServiceWorker();
