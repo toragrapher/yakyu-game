@@ -119,3 +119,45 @@ export interface Tactics {
   offense: OffenseTactic;
   pitching: PitchingTactic;
 }
+
+/** リーグ設定（ゲーム開始時に選ぶ） */
+export interface LeagueConfig {
+  /** 各リーグの球団数（自球団を含む） */
+  teamCounts: [number, number];
+  /** 1球団あたりの試合数。null は球団数から自動計算 */
+  games: number | null;
+  interleague: {
+    mode: 'period' | 'spread' | 'none';
+    /** 1球団あたりの交流戦の目安の試合数 */
+    games: number;
+  };
+  dh: [boolean, boolean];
+  postseason: {
+    /** 各リーグの進出球団数 */
+    teams: [number, number];
+    /** 1位のアドバンテージ（1勝分）の有無 */
+    advantage: boolean;
+  };
+}
+
+/** 日程の1試合 */
+export interface ScheduledGame {
+  awayId: number;
+  homeId: number;
+  interleague: boolean;
+}
+
+/** 日程の1日 */
+export interface ScheduleDay {
+  /** 日付（YYYY-MM-DD） */
+  date: string;
+  games: ScheduledGame[];
+}
+
+export interface Schedule {
+  /** 1球団あたりの試合数（実際の値） */
+  games: number;
+  days: ScheduleDay[];
+  /** 設定から自動で変えた点があれば、その説明 */
+  notes: string[];
+}

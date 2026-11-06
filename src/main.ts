@@ -10,6 +10,10 @@ import { buildGameTeam } from './core/sim/lineup';
 import type { GameResult, GameTeam } from './core/sim/types';
 import type { Player, Team } from './core/types';
 import { renderGameResult } from './ui/gameView';
+import { renderSchedule, renderScheduleSettings } from './ui/scheduleView';
+import { makeSchedule } from './core/schedule/schedule';
+import type { LeagueConfig, Schedule } from './core/types';
+import { DEFAULT_INTERLEAGUE_GAMES, DEFAULT_INTERLEAGUE_MODE, DEFAULT_TEAM_COUNTS } from './config/league';
 import './ui/style.css';
 
 const app = document.getElementById('app')!;
@@ -19,6 +23,24 @@ let players: Player[] = [];
 let selectedTeam = 1;
 let seed = 12345;
 let tab: 'players' | 'game' = 'players';
+let showSchedule = false;
+let scConfig: LeagueConfig = {
+  teamCounts: [DEFAULT_TEAM_COUNTS[0], DEFAULT_TEAM_COUNTS[1]],
+  games: null,
+  interleague: { mode: DEFAULT_INTERLEAGUE_MODE, games: DEFAULT_INTERLEAGUE_GAMES },
+  dh: [true, true],
+  postseason: { teams: [3, 3], advantage: true },
+};
+let scTeams: Team[] = [];
+let schedule: Schedule | null = null;
+let scSelected = 1;
+
+function buildSchedule(): void {
+  const rng = new Rng(seed);
+  scTeams = generateAiTeams(rng, new NameRegistry(), scConfig.teamCounts).teams;
+  schedule = makeSchedule(rng, scTeams, scConfig, 2027);
+  if (!scTeams.some((t) => t.id === scSelected)) scSelected = scTeams[0].id;
+}
 let awayId = 1;
 let homeId = 2;
 let gameCount = 0;
@@ -87,10 +109,11 @@ function render(): void {
       <p class="muted">同じシード番号なら、何度押しても同じ選手が出ます。全${players.length}人・同名なし。</p>
     </div>
     ${teams.length ? `
-    <div class="tabs"><button class="${tab === 'players' ? '' : 'sub'}" data-tab="players">選手一覧</button><button class="${tab === 'game' ? '' : 'sub'}" data-tab="game">1試合</button></div>
+    <div class="tabs"><button class="${!showSchedule && tab === 'players' ? '' : 'sub'}" data-tab="players">選手一覧</button><button class="${!showSchedule && tab === 'game' ? '' : 'sub'}" data-tab="game">1試合</button><button class="${showSchedule ? '' : 'sub'}" data-tab="schedule">日程</button></div>
     ` : ''}
-    ${teams.length && tab === 'game' ? gameSection() : ''}
-    ${teams.length && tab === 'players' ? `
+    ${showSchedule ? renderScheduleSettings(scConfig) + (schedule ? renderSchedule(schedule, scTeams, scSelected) : '') : ''}
+    ${teams.length && !showSchedule && tab === 'game' ? gameSection() : ''}
+    ${teams.length && !showSchedule && tab === 'players' ? `
     <div class="teamtabs">${teams.map((t) => `<button class="${t.id === selectedTeam ? '' : 'sub'}" data-team="${t.id}">${esc(t.shortName)}</button>`).join('')}</div>
     <div class="card">
       <div class="name" style="color:${team!.colorMain}">${esc(team!.name)}</div>
@@ -109,7 +132,11 @@ function render(): void {
   });
   app.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) =>
     b.addEventListener('click', () => {
-      tab = b.dataset.tab as typeof tab;
+      if (b.dataset.tab === 'schedule') showSchedule = true;
+      else {
+        showSchedule = false;
+        tab = b.dataset.tab as typeof tab;
+      }
       render();
     }),
   );
@@ -123,6 +150,24 @@ function render(): void {
     playGame();
     render();
   });
+  document.getElementById('sc-make')?.addEventListener('click', () => {
+    const num = (id: string) => Number((document.getElementById(id) as HTMLInputElement).value);
+    const gamesText = (document.getElementById('sc-games') as HTMLInputElement).value.trim();
+    scConfig = {
+      ...scConfig,
+      teamCounts: [num('sc-n0'), num('sc-n1')],
+      games: gamesText === '' ? null : Math.max(20, Math.min(200, Number(gamesText))),
+      interleague: { mode: (document.getElementById('sc-mode') as HTMLSelectElement).value as LeagueConfig['interleague']['mode'], games: Math.max(0, num('sc-inter')) },
+    };
+    buildSchedule();
+    render();
+  });
+  app.querySelectorAll<HTMLButtonElement>('[data-sc-team]').forEach((b) =>
+    b.addEventListener('click', () => {
+      scSelected = Number(b.dataset.scTeam);
+      render();
+    }),
+  );
   app.querySelectorAll<HTMLButtonElement>('[data-team]').forEach((b) =>
     b.addEventListener('click', () => {
       selectedTeam = Number(b.dataset.team);
