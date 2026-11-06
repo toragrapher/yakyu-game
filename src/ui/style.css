@@ -36,3 +36,13 @@ button.sub { background: transparent; color: var(--accent); border: 1px solid va
 .rank-F { background: #8a8f98; } .rank-G { background: #5d6168; }
 .teamtabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .teamtabs button { flex: 0 0 auto; padding: 8px 10px; font-size: 14px; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+table.line { width: 100%; }
+table.line th, table.line td { padding: 4px 3px; text-align: center; min-width: 1.6em; }
+table.line td.b { font-weight: 700; }
+table.box { width: 100%; margin-bottom: 12px; }
+table.box th, table.box td { padding: 4px 4px; text-align: center; border-bottom: 1px solid var(--line); }
+.tl { text-align: left !important; white-space: nowrap; }
+.tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.tabs button { flex: 1; }

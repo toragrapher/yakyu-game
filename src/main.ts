@@ -1,11 +1,15 @@
-// 開発用の画面（第1段階のステップ1）：選手の生成を確かめる
+// 開発用の画面（第1段階）：選手の生成と1試合のシミュレーションを確かめる
 import { LEAGUE_NAMES } from './config/league';
 import { generateAiTeams } from './core/generate/team';
 import { ORDER_FIT_LABEL, handLabel, playerTag, salaryLabel } from './core/labels';
 import { NameRegistry } from './core/names';
 import { overall, rankOf } from './core/ratings';
 import { Rng } from './core/rng';
+import { simulateGame } from './core/sim/game';
+import { buildGameTeam } from './core/sim/lineup';
+import type { GameResult, GameTeam } from './core/sim/types';
 import type { Player, Team } from './core/types';
+import { renderGameResult } from './ui/gameView';
 import './ui/style.css';
 
 const app = document.getElementById('app')!;
@@ -14,6 +18,37 @@ let teams: Team[] = [];
 let players: Player[] = [];
 let selectedTeam = 1;
 let seed = 12345;
+let tab: 'players' | 'game' = 'players';
+let awayId = 1;
+let homeId = 2;
+let gameCount = 0;
+let lastGame: { result: GameResult; away: GameTeam; home: GameTeam } | null = null;
+
+/** 1試合を行う。先発は上位6人の先発投手からランダム */
+function playGame(): void {
+  const rng = new Rng(seed * 1000 + ++gameCount);
+  const make = (id: number) => {
+    const team = teams.find((t) => t.id === id)!;
+    const roster = players.filter((p) => p.teamId === id && p.contract === 'roster');
+    const sps = roster.filter((p) => p.role === 'SP').sort((a, b) => overall(b) - overall(a)).slice(0, 6);
+    return buildGameTeam(team, roster, { dh: true, starter: rng.pick(sps) });
+  };
+  const away = make(awayId);
+  const home = make(homeId);
+  const result = simulateGame(rng, away, home, { dh: true, month: rng.int(4, 9), night: true });
+  lastGame = { result, away, home };
+}
+
+function gameSection(): string {
+  const opt = (sel: number) => teams.map((t) => `<option value="${t.id}" ${t.id === sel ? 'selected' : ''}>${esc(t.name)}</option>`).join('');
+  return `
+    <div class="card">
+      <div class="row"><label>ビジター <select id="away">${opt(awayId)}</select></label></div>
+      <div class="row" style="margin-top:8px"><label>ホーム　 <select id="home">${opt(homeId)}</select></label></div>
+      <div class="row" style="margin-top:8px"><button id="play">1試合</button><span class="muted">${gameCount}試合目</span></div>
+    </div>
+    ${lastGame ? renderGameResult(lastGame.result, lastGame.away, lastGame.home) : ''}`;
+}
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const r = (v: number) => `<span class="rank rank-${rankOf(v)}">${rankOf(v)}</span>`;
@@ -43,7 +78,7 @@ function render(): void {
   const payroll = mine.filter((p) => p.contract === 'roster').reduce((s, p) => s + p.salary, 0);
 
   app.innerHTML = `
-    <h1>選手生成の確認（開発用）</h1>
+    <h1>動作確認（開発用）</h1>
     <div class="card">
       <div class="row">
         <label>シード番号 <input id="seed" type="number" inputmode="numeric" value="${seed}" style="width:9em"></label>
@@ -52,6 +87,10 @@ function render(): void {
       <p class="muted">同じシード番号なら、何度押しても同じ選手が出ます。全${players.length}人・同名なし。</p>
     </div>
     ${teams.length ? `
+    <div class="tabs"><button class="${tab === 'players' ? '' : 'sub'}" data-tab="players">選手一覧</button><button class="${tab === 'game' ? '' : 'sub'}" data-tab="game">1試合</button></div>
+    ` : ''}
+    ${teams.length && tab === 'game' ? gameSection() : ''}
+    ${teams.length && tab === 'players' ? `
     <div class="teamtabs">${teams.map((t) => `<button class="${t.id === selectedTeam ? '' : 'sub'}" data-team="${t.id}">${esc(t.shortName)}</button>`).join('')}</div>
     <div class="card">
       <div class="name" style="color:${team!.colorMain}">${esc(team!.name)}</div>
@@ -68,6 +107,22 @@ function render(): void {
     seed = Number((document.getElementById('seed') as HTMLInputElement).value) || 0;
     generate();
   });
+  app.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach((b) =>
+    b.addEventListener('click', () => {
+      tab = b.dataset.tab as typeof tab;
+      render();
+    }),
+  );
+  document.getElementById('away')?.addEventListener('change', (e) => (awayId = Number((e.target as HTMLSelectElement).value)));
+  document.getElementById('home')?.addEventListener('change', (e) => (homeId = Number((e.target as HTMLSelectElement).value)));
+  document.getElementById('play')?.addEventListener('click', () => {
+    if (awayId === homeId) {
+      alert('ビジターとホームは別の球団を選んでください');
+      return;
+    }
+    playGame();
+    render();
+  });
   app.querySelectorAll<HTMLButtonElement>('[data-team]').forEach((b) =>
     b.addEventListener('click', () => {
       selectedTeam = Number(b.dataset.team);
@@ -81,8 +136,10 @@ function generate(): void {
   const result = generateAiTeams(new Rng(seed), new NameRegistry(), [6, 6]);
   teams = result.teams;
   players = result.players;
+  gameCount = 0;
+  lastGame = null;
   if (!teams.some((t) => t.id === selectedTeam)) selectedTeam = teams[0].id;
   render();
 }
 
-render();
+generate();

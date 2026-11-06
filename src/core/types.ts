@@ -109,3 +109,13 @@ export interface Team {
   league: 0 | 1; // 所属リーグ
   isUser: boolean;
 }
+
+/** 攻撃の采配方針 */
+export type OffenseTactic = 'normal' | 'slugging' | 'speed' | 'small' | 'defense';
+/** 継投の方針 */
+export type PitchingTactic = 'normal' | 'quickHook' | 'longStart';
+
+export interface Tactics {
+  offense: OffenseTactic;
+  pitching: PitchingTactic;
+}
