@@ -46,3 +46,30 @@ table.box th, table.box td { padding: 4px 4px; text-align: center; border-bottom
 .tl { text-align: left !important; white-space: nowrap; }
 .tabs { display: flex; gap: 8px; margin-bottom: 12px; }
 .tabs button { flex: 1; }
+/* ペナント画面 */
+.nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: var(--card); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); z-index: 10; }
+.nav button { flex: 1; background: transparent; color: var(--muted); border-radius: 0; font-size: 12px; padding: 8px 0; min-height: 52px; }
+.nav button.on { color: var(--accent); }
+#screen { padding-bottom: 80px; }
+.big { font-size: 22px; font-weight: 700; }
+.btns { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.btns button { padding: 10px 4px; font-size: 14px; }
+.seg { display: flex; gap: 0; border: 1px solid var(--accent); border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+.seg button { flex: 1; border-radius: 0; background: transparent; color: var(--accent); min-height: 36px; padding: 6px 4px; font-size: 14px; }
+.seg button.on { background: var(--accent); color: #fff; }
+.chip { display: inline-block; padding: 0 6px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+.cond { font-size: 13px; }
+.cond-5 { color: #e0245e; } .cond-4 { color: #f5793a; } .cond-3 { color: var(--muted); } .cond-2 { color: #2f80ed; } .cond-1 { color: #5b61d6; }
+.fat { display: inline-block; width: 36px; height: 6px; background: var(--line); border-radius: 3px; vertical-align: middle; overflow: hidden; }
+.fat span { display: block; height: 100%; }
+.fat-lo { background: #8cc63f; } .fat-mid { background: #f7931e; } .fat-hi { background: #e0245e; }
+.win { color: #e0245e; font-weight: 700; } .lose { color: #2f80ed; font-weight: 700; }
+.mine { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.small { font-size: 12px; }
+.prow { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.prow:last-child { border-bottom: 0; }
+.prow .grow { flex: 1; min-width: 0; }
+.prow button { min-height: 34px; padding: 4px 10px; font-size: 13px; }
+select.wide { width: 100%; }
+.progress { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--accent); }

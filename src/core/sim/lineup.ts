@@ -62,6 +62,12 @@ export interface BuildOptions {
   dh: boolean;
   starter?: Player;
   tactics?: Tactics;
+  /** 打順の指定（DHありの9人）。DHなしの試合では DH を外して9番に投手を入れる */
+  lineup?: { player: Player; pos: LineupSlot['pos'] }[];
+  /** 抑えの指定 */
+  closer?: Player | null;
+  /** 勝ちパターン（7回・8回）の指定 */
+  setup?: Player[];
 }
 
 /** 選手一覧から1試合の編成を自動で作る */
@@ -71,26 +77,39 @@ export function buildGameTeam(team: Team, players: Player[], opts: BuildOptions)
   const starters = pitchers.filter((p) => p.role === 'SP').sort((a, b) => pOverall(b) - pOverall(a));
   const starter = opts.starter ?? starters[0] ?? pitchers[0];
 
-  const defense = assignDefense(fielders);
-  const used = new Set(defense.map((d) => d.player.id));
-  const hitters: { player: Player; pos: LineupSlot['pos'] }[] = defense.map((d) => ({ player: d.player, pos: d.pos }));
-  if (opts.dh) {
-    const dh = fielders.filter((p) => !used.has(p.id)).sort((a, b) => offense(b) - offense(a))[0];
-    if (dh) {
-      hitters.push({ player: dh, pos: 'DH' });
-      used.add(dh.id);
+  let lineup: LineupSlot[];
+  const used = new Set<number>();
+  if (opts.lineup && opts.lineup.length === 9) {
+    lineup = opts.lineup.map((s) => ({ player: s.player, pos: s.pos }));
+    if (!opts.dh) {
+      lineup = lineup.filter((s) => s.pos !== 'DH');
+      lineup.push({ player: starter, pos: 'P' });
     }
+    for (const s of lineup) used.add(s.player.id);
   } else {
-    hitters.push({ player: starter, pos: 'P' });
+    const defense = assignDefense(fielders);
+    for (const d of defense) used.add(d.player.id);
+    const hitters: { player: Player; pos: LineupSlot['pos'] }[] = defense.map((d) => ({ player: d.player, pos: d.pos }));
+    if (opts.dh) {
+      const dh = fielders.filter((p) => !used.has(p.id)).sort((a, b) => offense(b) - offense(a))[0];
+      if (dh) {
+        hitters.push({ player: dh, pos: 'DH' });
+        used.add(dh.id);
+      }
+    } else {
+      hitters.push({ player: starter, pos: 'P' });
+    }
+    lineup = battingOrder(hitters);
   }
-  const lineup = battingOrder(hitters);
   const bench = fielders.filter((p) => !used.has(p.id)).sort((a, b) => offense(b) - offense(a));
 
   const relievers = pitchers.filter((p) => p.id !== starter.id && p.role !== 'SP').sort((a, b) => pOverall(b) - pOverall(a));
-  const closer = relievers.find((p) => p.role === 'CL') ?? relievers[0] ?? null;
+  const inPen = (p: Player | null | undefined) => !!p && pitchers.includes(p) && p.id !== starter.id;
+  const closer = opts.closer !== undefined && inPen(opts.closer) ? opts.closer! : (relievers.find((p) => p.role === 'CL') ?? relievers[0] ?? null);
   const rest = relievers.filter((p) => p !== closer);
-  const setup = rest.slice(0, 2);
-  const bullpen = rest.slice(2);
+  const setupPick = (opts.setup ?? []).filter((p) => inPen(p) && p !== closer);
+  const setup = setupPick.length > 0 ? setupPick.slice(0, 2) : rest.slice(0, 2);
+  const bullpen = rest.filter((p) => !setup.includes(p));
   // 先発以外の先発投手も、ロングリリーフとして最後に置く
   const otherStarters = starters.filter((p) => p.id !== starter.id);
   return {

@@ -20,8 +20,8 @@ export const BASE_RATES = {
 
 /** 打高・打低の全体係数（1より大きいと増える） */
 export const GLOBAL = {
-  hit: 1.135, // 単打・二塁打・三塁打
-  hr: 0.82, // 本塁打
+  hit: 1.16, // 単打・二塁打・三塁打
+  hr: 0.92, // 本塁打
   k: 1.04, // 三振
   bb: 0.78, // 四球
   /** 能力差の効き方の強さ（下の ELASTICITY 全体に掛ける）。大きいと強い選手・弱い選手の差が開く */
@@ -36,7 +36,7 @@ export const ELASTICITY = {
   K: { contact: -0.18, power: 0.06, velocity: 0.16, breaking: 0.1 },
   BB: { contact: 0.05, power: 0.08, control: -0.25 },
   HBP: { control: -0.15 },
-  S: { contact: 0.2, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
+  S: { contact: 0.18, speed: 0.04, velocity: -0.04, breaking: -0.07, defense: -0.05 },
   D: { contact: 0.08, power: 0.06, speed: 0.03, breaking: -0.07, defense: -0.04 },
   T: { power: 0.05, speed: 0.3, defense: -0.04 },
   HR: { contact: 0.03, power: 0.9, velocity: -0.06, breaking: -0.06, control: -0.05 },
@@ -150,9 +150,9 @@ export const PITCHING = {
 
 /** 球場の補正（本塁打・二塁打・単打の倍率） */
 export const PARK = {
-  size: { small: { hr: 1.1, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, large: { hr: 0.9, d: 1.05 } },
-  fence: { low: { hr: 1.07, d: 0.97 }, normal: { hr: 1.0, d: 1.0 }, high: { hr: 0.9, d: 1.08 } },
-  terrace: { hr: 1.08 },
+  size: { small: { hr: 1.06, d: 0.98 }, normal: { hr: 1.0, d: 1.0 }, large: { hr: 0.94, d: 1.03 } },
+  fence: { low: { hr: 1.04, d: 0.98 }, normal: { hr: 1.0, d: 1.0 }, high: { hr: 0.94, d: 1.05 } },
+  terrace: { hr: 1.05 },
   artificialTurf: { s: 1.02, d: 1.01 },
 };
 
@@ -168,5 +168,5 @@ export const WEATHER = {
   hrPerDegree: 0.006, // 気温1度ごとの本塁打の増減（20度基準）
   maxWind: 7, // 風速の上限（m/秒、海沿いは1.5倍）
   seasideFactor: 1.5,
-  hrPerWind: 0.035, // 追い風1m/秒ごとの本塁打の増加（向かい風は減少）
+  hrPerWind: 0.025, // 追い風1m/秒ごとの本塁打の増加（向かい風は減少）
 };

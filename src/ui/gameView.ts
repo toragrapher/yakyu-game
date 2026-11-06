@@ -15,7 +15,15 @@ export function renderGameResult(r: GameResult, away: GameTeam, home: GameTeam):
   const gts = [away, home];
   const byId = new Map<number, Player>();
   for (const gt of gts) for (const p of allPlayers(gt)) byId.set(p.id, p);
-  const name = (id: number | null) => (id == null ? '' : esc(byId.get(id)?.familyName ?? '?'));
+  // 同じ試合に同じ姓の選手がいるときは、名前まで出す
+  const famCount = new Map<string, number>();
+  for (const p of byId.values()) famCount.set(p.familyName, (famCount.get(p.familyName) ?? 0) + 1);
+  const name = (id: number | null) => {
+    if (id == null) return '';
+    const p = byId.get(id);
+    if (!p) return '?';
+    return esc((famCount.get(p.familyName) ?? 0) > 1 ? `${p.familyName}${p.givenName.slice(0, 1)}` : p.familyName);
+  };
   const innings = r.line[0].length;
 
   const head = Array.from({ length: innings }, (_, i) => `<th>${i + 1}</th>`).join('');

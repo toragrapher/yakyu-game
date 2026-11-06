@@ -28,7 +28,7 @@ function report(title: string, target: Target, values: number[], passRate: numbe
   );
 }
 
-console.log(`\n=== 検証結果：${seasons}シーズン（${results[0].teams.length}球団、143試合）===\n`);
+console.log(`\n=== 検証結果：${seasons}シーズン（${results[0].teams.length}球団、本番と同じ日程・一軍二軍・疲労・調子。数字は143試合換算）===\n`);
 console.log(`【チーム成績】（範囲内が${TEAM_PASS_RATE * 100}%以上で合格）`);
 const teams = results.flatMap((r) => r.teams);
 for (const t of TEAM_TARGETS) report('', t, teams.map((x) => x[t.key as keyof typeof x] as number), TEAM_PASS_RATE);
@@ -48,6 +48,6 @@ console.log(`${eraOk ? '○' : '×'} 防御率 ${lgEra.toFixed(2)}（目安 3.40
 
 const mean = (k: 'k' | 'bb' | 'errors' | 'obp' | 'slg' | 'paPerGame') => teams.reduce((s, t) => s + t[k], 0) / teams.length;
 const wins = teams.map((t) => t.wins);
-console.log(`\n（参考）三振率 ${(mean('k') * 100).toFixed(1)}%・四球率 ${(mean('bb') * 100).toFixed(1)}%・出塁率 ${mean('obp').toFixed(3)}・長打率 ${mean('slg').toFixed(3)}・1試合の打席 ${mean('paPerGame').toFixed(1)}・チーム失策 ${mean('errors').toFixed(0)}・勝利数 最少${Math.min(...wins)} 最多${Math.max(...wins)}`);
+console.log(`\n（参考）三振率 ${(mean('k') * 100).toFixed(1)}%・四球率 ${(mean('bb') * 100).toFixed(1)}%・出塁率 ${mean('obp').toFixed(3)}・長打率 ${mean('slg').toFixed(3)}・1試合の打席 ${mean('paPerGame').toFixed(1)}・勝利数 最少${Math.min(...wins)} 最多${Math.max(...wins)}`);
 console.log(`\n総合：${allPass ? '○ すべて目標範囲内' : '× 範囲外の指標あり'}（${((Date.now() - started) / 1000).toFixed(1)}秒）\n`);
 process.exitCode = allPass ? 0 : 1;
